@@ -16,3 +16,5 @@ CLAUDE.md
 
 # Supabase CLI local session cache (project ref, pooler URL, version pins)
 supabase/.temp/
+
+.vercel
