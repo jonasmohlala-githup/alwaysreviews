@@ -8,14 +8,15 @@
 create or replace function create_unmatched_reviewer_placeholder()
 returns trigger as $$
 begin
-  insert into customers (business_id, full_name, first_name, phone, source, notes)
+  insert into customers (business_id, full_name, first_name, phone, source, notes, do_not_call)
   values (
     new.id,
     'Unmatched Reviewer',
     'Unmatched',
     'N/A',
     'system',
-    'Placeholder customer for GBP reviews that could not be confidently matched to a real customer record.'
+    'Placeholder customer for GBP reviews that could not be confidently matched to a real customer record.',
+    true
   );
   return new;
 end;

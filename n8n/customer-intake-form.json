@@ -141,7 +141,7 @@
         "operation": "executeQuery",
         "query": "insert into customers (\n  business_id, first_name, full_name, phone, email,\n  service_type, job_completion_date, consent_optin, source, project_image_url\n) values (\n  $1, $2, $3, $4, $5, $6, $7, $8, 'Business self-serve form (authenticated)', $9\n)\nreturning id;",
         "options": {
-          "queryReplacement": "={{ $json.business_id }},{{ $json.first_name }},{{ $json.full_name }},{{ $json.phone }},{{ $json.email }},{{ $json.service_type }},{{ $json.job_completion_date }},{{ $json.consent_optin ? true : false }},{{ $json.project_image_url }}"
+          "queryReplacement": "={{ [$json.business_id, $json.first_name, $json.full_name, $json.phone, $json.email, $json.service_type, $json.job_completion_date, ($json.consent_optin ? true : false), $json.project_image_url] }}"
         }
       },
       "id": "a1a1a1a1-0007-4000-8000-000000000007",
@@ -172,7 +172,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { success: false, error: $json.message || 'Unknown error' } }}",
+        "responseBody": "={{ { success: false, error: $json.message || (typeof $json.error === 'string' ? $json.error : $json.error?.message) || 'Unknown error' } }}",
         "options": {
           "responseCode": 400
         }

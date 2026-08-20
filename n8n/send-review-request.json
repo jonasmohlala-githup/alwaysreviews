@@ -24,7 +24,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select c.id as customer_id, c.business_id, c.first_name, c.full_name, c.phone, c.email,\n       c.project_image_url,\n       b.business_name, b.review_request_link, b.whatsapp_sender_number,\n       coalesce(a.attempt_count, 0) as attempt_count,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.whatsapp_template_1\n         when 2 then b.whatsapp_template_2\n         when 3 then b.whatsapp_template_3\n         when 4 then b.whatsapp_template_4\n       end as whatsapp_template,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_subject_1\n         when 2 then b.email_subject_2\n         when 3 then b.email_subject_3\n         when 4 then b.email_subject_4\n       end as email_subject,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_intro_1\n         when 2 then b.email_intro_2\n         when 3 then b.email_intro_3\n         when 4 then b.email_intro_4\n       end as email_intro\nfrom customers c\njoin businesses b on b.id = c.business_id\nleft join (\n  select customer_id, count(*) as attempt_count, max(timestamp) as last_attempt_at\n  from activities\n  where activity_type = 'Request Sent'\n  group by customer_id\n) a on a.customer_id = c.id\nwhere c.opt_out = false\n  and c.do_not_call = false\n  and c.consent_optin = true\n  and b.status = 'Active'\n  and coalesce(a.attempt_count, 0) < 4\n  and not exists (\n    select 1 from activities r\n    where r.customer_id = c.id and r.review_received = true\n  )\n  and (\n    a.last_attempt_at is null\n    or a.last_attempt_at <= now() - (\n      case coalesce(a.attempt_count, 0)\n        when 1 then interval '5 days'\n        when 2 then interval '10 days'\n        when 3 then interval '20 days'\n      end\n    )\n  )",
+        "query": "select c.id as customer_id, c.business_id, c.first_name, c.full_name, c.phone, c.email,\n       c.project_image_url,\n       b.business_name, b.review_request_link, b.whatsapp_sender_number,\n       coalesce(a.attempt_count, 0) as attempt_count,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.whatsapp_template_1\n         when 2 then b.whatsapp_template_2\n         when 3 then b.whatsapp_template_3\n         when 4 then b.whatsapp_template_4\n       end as whatsapp_template,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_subject_1\n         when 2 then b.email_subject_2\n         when 3 then b.email_subject_3\n         when 4 then b.email_subject_4\n       end as email_subject,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_intro_1\n         when 2 then b.email_intro_2\n         when 3 then b.email_intro_3\n         when 4 then b.email_intro_4\n       end as email_intro\nfrom customers c\njoin businesses b on b.id = c.business_id\nleft join (\n  select customer_id, count(*) as attempt_count, max(timestamp) as last_attempt_at\n  from activities\n  where activity_type = 'Request Sent'\n  group by customer_id\n) a on a.customer_id = c.id\nwhere c.opt_out = false\n  and c.do_not_call = false\n  and c.consent_optin = true\n  and not (c.source = 'system' and c.full_name = 'Unmatched Reviewer')\n  and b.status = 'Active'\n  and coalesce(a.attempt_count, 0) < 4\n  and not exists (\n    select 1 from activities r\n    where r.customer_id = c.id and r.review_received = true\n  )\n  and (\n    a.last_attempt_at is null\n    or a.last_attempt_at <= now() - (\n      case coalesce(a.attempt_count, 0)\n        when 1 then interval '5 days'\n        when 2 then interval '10 days'\n        when 3 then interval '20 days'\n      end\n    )\n  )",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -132,8 +132,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  '{{ $json.business_id }}',\n  '{{ $json.customer_id }}',\n  'Request Sent',\n  'Sent',\n  'WhatsApp',\n  '{{ $json.whatsapp_template }}',\n  '{{ $json.project_image_url }}',\n  {{ $json.attempt_count + 1 }},\n  'Sent via n8n WhatsApp (Pabbly Chatflow) workflow — attempt {{ $json.attempt_count + 1 }}'\n)\nreturning id;",
-        "options": {}
+        "query": "insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  $1, $2, 'Request Sent', 'Sent', 'WhatsApp', $3, $4, $5, $6\n)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [$json.business_id, $json.customer_id, $json.whatsapp_template, $json.project_image_url, $json.attempt_count + 1, \"Sent via n8n WhatsApp (Pabbly Chatflow) workflow — attempt \" + ($json.attempt_count + 1)] }}"
+        }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -153,8 +155,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  '{{ $json.business_id }}',\n  '{{ $json.customer_id }}',\n  'Request Sent',\n  'Sent',\n  'Email',\n  '{{ $json.email_subject }}',\n  '{{ $json.project_image_url }}',\n  {{ $json.attempt_count + 1 }},\n  'Sent via n8n email workflow — attempt {{ $json.attempt_count + 1 }}'\n)\nreturning id;",
-        "options": {}
+        "query": "insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  $1, $2, 'Request Sent', 'Sent', 'Email', $3, $4, $5, $6\n)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [$json.business_id, $json.customer_id, $json.email_subject, $json.project_image_url, $json.attempt_count + 1, \"Sent via n8n email workflow — attempt \" + ($json.attempt_count + 1)] }}"
+        }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -200,14 +204,14 @@
       "main": [
         [
           {
-            "node": "HTTP Request",
+            "node": "Send a message",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Send a message",
+            "node": "HTTP Request",
             "type": "main",
             "index": 0
           }
