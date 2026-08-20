@@ -99,8 +99,10 @@
   }
 
   async function requireAuthAndLoad() {
-    const session = await getSession();
+    const { data, error: sessionError } = await sb.auth.getSession();
+    const session = data?.session;
     if (!session) {
+      console.error("No session on dashboard load.", { sessionError, hash: window.location.hash });
       window.location.href = "index.html";
       return;
     }
