@@ -1,0 +1,968 @@
+{
+  "name": "Inbound GBP Review Capture",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "b1b1b1b1-0001-4000-8000-000000000001",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select id as business_id, business_name, gbp_account_id, location_id\nfrom businesses\nwhere status = 'Active'\n  and gbp_account_id is not null\n  and location_id is not null;",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0002-4000-8000-000000000002",
+      "name": "Get Active Businesses with GBP",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -560,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://mybusiness.googleapis.com/v4/accounts/{{ $json.gbp_account_id }}/locations/{{ $json.location_id }}/reviews",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageSize",
+              "value": "50"
+            },
+            {
+              "name": "orderBy",
+              "value": "updateTime desc"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-0003-4000-8000-000000000003",
+      "name": "List Reviews for Location",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        0
+      ],
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google OAuth2 account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "onError: continueErrorOutput so a bad gbp_account_id/location_id for one business (Google 400/403/404) routes to this node's error output instead of aborting the whole scheduled run for every other business. The error output's item is just {error: \"...\"} -- business_id etc. are NOT preserved on it, and pairedItem/itemMatching lookups back to 'Get Active Businesses with GBP' are documented as unreliable specifically across HTTP Request's error output (n8n issues #30050, #12558). Fixed by re-pairing via 'Pair Failure with Business (by position)' below instead of any reach-back expression."
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0003-4000-8000-000000000003d",
+      "name": "Pair Failure with Business (by position)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -320,
+        200
+      ],
+      "notes": "Input 0: the failed item(s) from List Reviews for Location's error output. Input 1: the original business rows from Get Active Businesses with GBP, in the same order. Both lists share the same 1:1 order/length (one HTTP call per business row), so 'Combine By Position' reliably re-attaches business_id/business_name to a failure without relying on pairedItem, which n8n does not preserve across this node's error output."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update businesses set last_sync_error = $1, last_sync_error_at = now() where id = $2;",
+        "options": {
+          "queryReplacement": "={{ [($json.error || 'Unknown GBP fetch error').toString().slice(0, 500), $json.business_id] }}"
+        }
+      },
+      "id": "b1b1b1b1-0003-4000-8000-000000000003c",
+      "name": "Log GBP Fetch Failure",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -80,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Records a broken GBP link (bad account/location id, revoked OAuth, etc.) on the business row so it's queryable instead of only visible in n8n's execution log. business_id comes from the position-paired merge upstream, not a reach-back expression. Does not notify the business directly."
+    },
+    {
+      "parameters": {
+        "jsCode": "const businessRow = $('Get Active Businesses with GBP').item.json;\nconst response = items[0].json;\nconst reviews = response.reviews || [];\n\nreturn reviews.map(r => {\n  const starMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };\n  return {\n    json: {\n      business_id: businessRow.business_id,\n      business_name: businessRow.business_name,\n      gbp_account_id: businessRow.gbp_account_id,\n      location_id: businessRow.location_id,\n      review_id: r.reviewId,\n      reviewer_name: r.reviewer?.displayName || '',\n      star_rating: r.starRating,\n      star_number: starMap[r.starRating] || null,\n      review_comment: r.comment || '',\n      review_link: r.name ? `https://business.google.com/reviews/l/${businessRow.location_id || ''}` : null,\n      create_time: r.createTime,\n      has_existing_google_reply: !!r.reviewReply,\n      existing_google_reply_comment: r.reviewReply?.comment || null\n    }\n  };\n});"
+      },
+      "id": "b1b1b1b1-0004-4000-8000-000000000004",
+      "name": "Flatten Reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return items;"
+      },
+      "id": "b1b1b1b1-0004-4000-8000-000000000004d",
+      "name": "Keep Review Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select id as existing_activity_id, activity_status as existing_status from activities where review_id = '{{ $json.review_id }}' limit 1;",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0005-4000-8000-000000000005",
+      "name": "Check Already Logged",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        180,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const reviews = $('Keep Review Data').all();\nconst checks = items;\n\nreturn reviews.map((review, i) => ({\n  json: {\n    ...review.json,\n    existing_activity_id: checks[i]?.json?.existing_activity_id || null,\n    existing_status: checks[i]?.json?.existing_status || null\n  }\n}));"
+      },
+      "id": "b1b1b1b1-0005-4000-8000-000000000005b",
+      "name": "Merge Review + Check Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.existing_status }}",
+              "rightValue": "Completed",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-0006-4000-8000-000000000006",
+      "name": "New Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with candidate as (\n  select c.id as customer_id, c.full_name,\n         similarity(lower(c.full_name), lower($1)) as name_score\n  from customers c\n  join activities a on a.customer_id = c.id and a.activity_type = 'Request Sent'\n  where c.business_id = $2\n    and a.timestamp >= now() - interval '60 days'\n  order by name_score desc, a.timestamp desc\n  limit 1\n),\nfallback as (\n  select id as customer_id, full_name, 0::float as name_score\n  from customers\n  where business_id = $2\n    and source = 'system'\n    and full_name = 'Unmatched Reviewer'\n  limit 1\n)\nselect customer_id, full_name, name_score from candidate where name_score >= 0.3\nunion all\nselect customer_id, full_name, name_score from fallback\nwhere not exists (select 1 from candidate where name_score >= 0.3)\nlimit 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.reviewer_name, $json.business_id] }}"
+        }
+      },
+      "id": "b1b1b1b1-0007-4000-8000-000000000007",
+      "name": "Find Best Match Customer",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        660,
+        -100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Requires the pg_trgm extension for similarity(). Matches must score >= 0.3 to count as real; otherwise falls back to that business's 'Unmatched Reviewer' placeholder customer. Requires the placeholder row to already exist per business (see 'Ensure Placeholder Customer' step in onboarding, or run once per business manually)."
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = $('New Review?').item.json;\nconst match = items[0].json;\n\nreturn [{\n  json: {\n    ...review,\n    customer_id: match.customer_id,\n    matched_full_name: match.full_name,\n    name_score: match.name_score\n  }\n}];"
+      },
+      "id": "b1b1b1b1-0007-4000-8000-000000000007b",
+      "name": "Merge Match Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into activities (\n  business_id, customer_id, activity_type, review_received,\n  activity_status, review_id, star_rating, star_number,\n  review_comment, review_link, notes\n) values (\n  $1, $2, 'Follow-up', true, 'Pending', $3, $4, $5, $6, $7, $8\n)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ [$json.business_id, $json.customer_id, $json.review_id, $json.star_rating, $json.star_number, $json.review_comment, $json.review_link, ($json.name_score > 0 ? \"Auto-matched to \" + $json.matched_full_name + \" (name_score: \" + $json.name_score + \")\" : \"No confident match (reviewer: \" + $json.reviewer_name + \") \\u2014 logged against Unmatched Reviewer placeholder\") + \" via GBP review capture workflow\"] }}"
+        }
+      },
+      "id": "b1b1b1b1-0008-4000-8000-000000000008",
+      "name": "Insert Review Activity",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        900,
+        -100
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = items[0].json;\n\nif (review.activity_id) {\n  // Retry path: Prep Retry already set activity_id from the existing row.\n  return [{ json: review }];\n}\n\n// Fresh insert path: this item comes from 'Insert Review Activity', paired with Merge Match Result.\nconst original = $('Merge Match Result').item.json;\nreturn [{\n  json: {\n    ...original,\n    activity_id: review.id\n  }\n}];"
+      },
+      "id": "b1b1b1b1-0009-4000-8000-000000000009",
+      "name": "Attach Activity ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_existing_google_reply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-0019-4000-8000-000000000019",
+      "name": "Already Replied on Google?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1110,
+        -220
+      ],
+      "notes": "Checks reviewReply on the raw GBP API response (attached in Flatten Reviews as has_existing_google_reply). Prevents re-generating/re-posting a reply for a review that already has one on Google -- e.g. replied manually, by a previous system, or before this automation existed on a business with existing review history. True -> just mark Completed and notify (no AI reply, no post). False -> proceeds to the normal Good Review?/AI-reply flow as before."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update activities set reply_text = $1, activity_status = 'Completed', notes = notes || ' | Skipped auto-reply: review already had a reply on Google' where id = $2;",
+        "options": {
+          "queryReplacement": "={{ [$json.existing_google_reply_comment, $json.activity_id] }}"
+        }
+      },
+      "id": "b1b1b1b1-001a-4000-8000-00000000001a",
+      "name": "Log Already-Replied (Skip AI Reply)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1250,
+        -350
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Records the reply that already existed on Google (not one this workflow generated) and marks the activity Completed immediately, since no further action is needed -- no AI call, no Post Reply to GBP."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.star_number }}",
+              "rightValue": 4,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-0010-4000-8000-000000000010",
+      "name": "Good Review? (4-5 stars)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [{\n      text: \"You are replying, on behalf of the business '\" + $json.business_name + \"', to a positive Google review. Reviewer name: \" + $json.reviewer_name + \". Star rating: \" + $json.star_number + \" out of 5. Review text: \\\"\" + ($json.review_comment || '(no comment left)') + \"\\\"\\n\\nWrite a warm, genuine, specific reply (2-3 sentences) that: addresses the reviewer by their first name, thanks them, and references something specific from their comment if there is one (otherwise just thank them warmly for the rating). Keep it natural and not overly formal or salesy. Do not use emojis. Return ONLY the reply text, nothing else \u00e2\u20ac\u201d no quotes, no preamble.\"\n    }]\n  }]\n}) }}",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0011-4000-8000-000000000011",
+      "name": "Generate AI Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        -200
+      ],
+      "notes": "Model corrected from gemini-2.5-flash (deprecated, returns 'no longer available to new users' 404 as of testing on 2026-08-20) to gemini-3.6-flash. If this model is deprecated in turn, check https://ai.google.dev/gemini-api/docs/models for the current text-generation model name -- do not silently retry the old name.",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_GEMINI_HEADER_AUTH_CREDENTIAL_ID",
+          "name": "geminiApi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = $('Attach Activity ID').item.json;\nconst response = items[0].json;\nconst replyText = response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()\n  || `Hi ${(review.reviewer_name || '').split(' ')[0] || 'there'}, thank you so much for the kind words and for taking the time to leave us a review! We really appreciate your support.`;\n\nreturn [{\n  json: {\n    ...review,\n    reply_text: replyText\n  }\n}];"
+      },
+      "id": "b1b1b1b1-0011-4000-8000-000000000011b",
+      "name": "Extract Reply Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        -200
+      ],
+      "notes": "Falls back to a fixed template if Gemini fails or returns an unexpected shape, so a bad AI call never blocks the reply from being posted."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://mybusiness.googleapis.com/v4/accounts/{{ $json.gbp_account_id }}/locations/{{ $json.location_id }}/reviews/{{ $json.review_id }}/reply",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ comment: $json.reply_text }) }}",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0012-4000-8000-000000000012",
+      "name": "Post Reply to GBP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        -200
+      ],
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google OAuth2 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=update activities set reply_text = '{{ $('Extract Reply Text').item.json.reply_text.replace(/'/g, \"''\") }}', activity_status = 'Completed' where id = '{{ $('Attach Activity ID').item.json.activity_id }}';",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0013-4000-8000-000000000013",
+      "name": "Log Reply on Activity",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1880,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=update activities set notes = notes || ' | LOW STAR - needs manual reply' where id = '{{ $json.activity_id }}';",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0014-4000-8000-000000000014",
+      "name": "Flag Low-Star for Manual Reply",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1400,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select contact_email from businesses where id = '{{ $('Attach Activity ID').item.json.business_id }}' limit 1;",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0015-4000-8000-000000000015",
+      "name": "Get Business Contact Email (from Reply Path)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2120,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select contact_email from businesses where id = '{{ $('Attach Activity ID').item.json.business_id }}' limit 1;",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0016-4000-8000-000000000016",
+      "name": "Get Business Contact Email (from Low-Star Path)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1640,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = $('Attach Activity ID').item.json;\nconst email = items[0].json.contact_email;\nreturn [{ json: { ...review, business_contact_email: email } }];"
+      },
+      "id": "b1b1b1b1-0017-4000-8000-000000000017a",
+      "name": "Merge Email (Reply Path)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2260,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = $('Attach Activity ID').item.json;\nconst email = items[0].json.contact_email;\nreturn [{ json: { ...review, business_contact_email: email } }];"
+      },
+      "id": "b1b1b1b1-0017-4000-8000-000000000017b",
+      "name": "Merge Email (Low-Star Path)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.business_contact_email }}",
+        "subject": "=New {{ $json.star_number }}-star review from {{ $json.reviewer_name }}",
+        "message": "=<p>Hi,</p>\n<p>A new Google review just came in for <strong>{{ $json.business_name }}</strong>:</p>\n<p><strong>Rating:</strong> {{ $json.star_number }} / 5 stars<br>\n<strong>Reviewer:</strong> {{ $json.reviewer_name }}<br>\n<strong>Comment:</strong> {{ $json.review_comment || '(no comment left)' }}</p>\n<p>{{ $json.has_existing_google_reply ? 'This review already had a reply on Google, so we did not post a new one. Existing reply: \"' + $json.reply_text + '\"' : ($json.star_number >= 4 ? 'We\\'ve automatically posted a thank-you reply on your behalf: \"' + $json.reply_text + '\"' : 'This review needs your personal attention \u00e2\u20ac\u201d we have not auto-replied since it is 3 stars or below.') }}</p>\n<p><a href=\"{{ $json.review_link }}\">View the review on Google</a></p>",
+        "options": {}
+      },
+      "id": "b1b1b1b1-0018-4000-8000-000000000018",
+      "name": "Notify Business of New Review",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2400,
+        -100
+      ],
+      "webhookId": "notify-business-review",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.existing_activity_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-0006-4000-8000-000000000006b",
+      "name": "Needs Insert or Just Retry?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ...items[0].json, activity_id: items[0].json.existing_activity_id } }];"
+      },
+      "id": "b1b1b1b1-0006-4000-8000-000000000006c",
+      "name": "Prep Retry (Skip Insert)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Active Businesses with GBP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Businesses with GBP": {
+      "main": [
+        [
+          {
+            "node": "List Reviews for Location",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pair Failure with Business (by position)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "List Reviews for Location": {
+      "main": [
+        [
+          {
+            "node": "Flatten Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pair Failure with Business (by position)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pair Failure with Business (by position)": {
+      "main": [
+        [
+          {
+            "node": "Log GBP Fetch Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flatten Reviews": {
+      "main": [
+        [
+          {
+            "node": "Keep Review Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Review Data": {
+      "main": [
+        [
+          {
+            "node": "Check Already Logged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Already Logged": {
+      "main": [
+        [
+          {
+            "node": "Merge Review + Check Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Review + Check Result": {
+      "main": [
+        [
+          {
+            "node": "New Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Review?": {
+      "main": [
+        [
+          {
+            "node": "Needs Insert or Just Retry?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Find Best Match Customer": {
+      "main": [
+        [
+          {
+            "node": "Merge Match Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Match Result": {
+      "main": [
+        [
+          {
+            "node": "Insert Review Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Review Activity": {
+      "main": [
+        [
+          {
+            "node": "Attach Activity ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Activity ID": {
+      "main": [
+        [
+          {
+            "node": "Already Replied on Google?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Replied on Google?": {
+      "main": [
+        [
+          {
+            "node": "Log Already-Replied (Skip AI Reply)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Good Review? (4-5 stars)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Already-Replied (Skip AI Reply)": {
+      "main": [
+        [
+          {
+            "node": "Get Business Contact Email (from Low-Star Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Good Review? (4-5 stars)": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Low-Star for Manual Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Reply": {
+      "main": [
+        [
+          {
+            "node": "Extract Reply Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Reply Text": {
+      "main": [
+        [
+          {
+            "node": "Post Reply to GBP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Reply to GBP": {
+      "main": [
+        [
+          {
+            "node": "Log Reply on Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Reply on Activity": {
+      "main": [
+        [
+          {
+            "node": "Get Business Contact Email (from Reply Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Business Contact Email (from Reply Path)": {
+      "main": [
+        [
+          {
+            "node": "Merge Email (Reply Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Email (Reply Path)": {
+      "main": [
+        [
+          {
+            "node": "Notify Business of New Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Low-Star for Manual Reply": {
+      "main": [
+        [
+          {
+            "node": "Get Business Contact Email (from Low-Star Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Business Contact Email (from Low-Star Path)": {
+      "main": [
+        [
+          {
+            "node": "Merge Email (Low-Star Path)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Email (Low-Star Path)": {
+      "main": [
+        [
+          {
+            "node": "Notify Business of New Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Insert or Just Retry?": {
+      "main": [
+        [
+          {
+            "node": "Find Best Match Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Retry (Skip Insert)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Retry (Skip Insert)": {
+      "main": [
+        [
+          {
+            "node": "Attach Activity ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "inbound-gbp-review-capture"
+  }
+}

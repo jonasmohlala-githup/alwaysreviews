@@ -1,0 +1,264 @@
+{
+  "name": "Customer Intake (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "customer-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1a1a1a1-0001-4000-8000-000000000001",
+      "name": "Customer Intake (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-400, 0],
+      "webhookId": "customer-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = items[0].json.body || items[0].json;\n\nif (!body.business_id) {\n  throw new Error('Missing business_id — the website must supply the RLS-verified business_id of the logged-in user.');\n}\nif (!body.first_name) {\n  throw new Error('Missing first_name.');\n}\n\nconst hasFile = !!body.photo_base64;\nconst ext = hasFile ? (body.photo_ext || 'jpg') : null;\nconst filename = hasFile ? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}` : null;\n\nreturn [{\n  json: {\n    business_id: body.business_id,\n    first_name: body.first_name,\n    full_name: body.full_name || null,\n    phone: body.phone || null,\n    email: body.email || null,\n    service_type: body.service_type || null,\n    job_completion_date: body.job_completion_date || null,\n    consent_optin: !!body.consent_optin,\n    _hasFile: hasFile,\n    _storageFilename: filename,\n    _photoBase64: body.photo_base64 || null,\n    _photoMimeType: body.photo_mime_type || 'image/jpeg'\n  }\n}];"
+      },
+      "id": "a1a1a1a1-0002-4000-8000-000000000002",
+      "name": "Prepare Filename",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-160, 0],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._hasFile }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1a1a1a1-0003-4000-8000-000000000003",
+      "name": "Has Photo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [80, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{\n    parts: [\n      { text: \"Add a personalized name overlay to this photo. Place a solid white rounded-rectangle badge in the lower third of the image, horizontally centered. Inside the badge, write the customer's first name '\" + $json.first_name + \"' in large, bold, black, friendly sans-serif text, with an exclamation mark after it (for example 'Jacob!'). Do not add any other text, logos, or graphics. Keep the rest of the photo unchanged.\" },\n      { inline_data: { mime_type: $json._photoMimeType, data: $json._photoBase64 } }\n    ]\n  }],\n  generationConfig: { responseModalities: [\"IMAGE\"] }\n}) }}",
+        "options": {}
+      },
+      "id": "a1a1a1a1-0004-4000-8000-000000000004b",
+      "name": "Personalize Image with Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, -200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_GEMINI_HEADER_AUTH_CREDENTIAL_ID",
+          "name": "geminiApi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = items[0].json;\nconst parts = response?.candidates?.[0]?.content?.parts || [];\nconst imagePart = parts.find(p => p.inlineData || p.inline_data);\nconst inline = imagePart?.inlineData || imagePart?.inline_data;\n\nconst prepared = $('Prepare Filename').first().json;\n\nif (!inline) {\n  // Gemini failed to return an image — fall back to the original uploaded photo\n  // rather than blocking the whole customer insert on a personalization failure.\n  return [{\n    json: prepared,\n    binary: {\n      photo: await this.helpers.prepareBinaryData(Buffer.from(prepared._photoBase64, 'base64'), prepared._storageFilename, prepared._photoMimeType)\n    }\n  }];\n}\n\nconst mimeType = inline.mimeType || inline.mime_type || 'image/png';\nconst base64Data = inline.data;\n\nreturn [{\n  json: prepared,\n  binary: {\n    photo: await this.helpers.prepareBinaryData(Buffer.from(base64Data, 'base64'), prepared._storageFilename, mimeType)\n  }\n}];"
+      },
+      "id": "a1a1a1a1-0004-4000-8000-000000000004c",
+      "name": "Decode Personalized Image",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, -200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://xbmoomufmxicwymwbovg.supabase.co/storage/v1/object/customer-project-images/{{ $json._storageFilename }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.supabaseServiceRole.serviceRoleKey }}"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $credentials.supabaseServiceRole.serviceRoleKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "photo",
+        "options": {}
+      },
+      "id": "a1a1a1a1-0004-4000-8000-000000000004",
+      "name": "Upload Photo to Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [800, -200],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const hasFile = $('Prepare Filename').first().json._hasFile;\nconst filename = $('Prepare Filename').first().json._storageFilename;\nconst publicUrl = hasFile\n  ? `https://xbmoomufmxicwymwbovg.supabase.co/storage/v1/object/public/customer-project-images/${filename}`\n  : null;\n\nreturn [{\n  json: {\n    ...$('Prepare Filename').first().json,\n    project_image_url: publicUrl\n  }\n}];"
+      },
+      "id": "a1a1a1a1-0005-4000-8000-000000000005",
+      "name": "Build Image URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into customers (\n  business_id, first_name, full_name, phone, email,\n  service_type, job_completion_date, consent_optin, source, project_image_url\n) values (\n  $1, $2, $3, $4, $5, $6, $7, $8, 'Business self-serve form (authenticated)', $9\n)\nreturning id;",
+        "options": {
+          "queryReplacement": "={{ $json.business_id }},{{ $json.first_name }},{{ $json.full_name }},{{ $json.phone }},{{ $json.email }},{{ $json.service_type }},{{ $json.job_completion_date }},{{ $json.consent_optin ? true : false }},{{ $json.project_image_url }}"
+        }
+      },
+      "id": "a1a1a1a1-0007-4000-8000-000000000007",
+      "name": "Insert Customer",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [800, 0],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, customer_id: $json.id, project_image_url: $('Build Image URL').first().json.project_image_url } }}",
+        "options": {}
+      },
+      "id": "a1a1a1a1-0008-4000-8000-000000000008",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [1040, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, error: $json.message || 'Unknown error' } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "a1a1a1a1-0009-4000-8000-000000000009",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [800, 260]
+    }
+  ],
+  "connections": {
+    "Customer Intake (Webhook)": {
+      "main": [
+        [
+          { "node": "Prepare Filename", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Prepare Filename": {
+      "main": [
+        [
+          { "node": "Has Photo?", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond Error", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Has Photo?": {
+      "main": [
+        [
+          { "node": "Personalize Image with Gemini", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Build Image URL", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Personalize Image with Gemini": {
+      "main": [
+        [
+          { "node": "Decode Personalized Image", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Decode Personalized Image": {
+      "main": [
+        [
+          { "node": "Upload Photo to Storage", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Upload Photo to Storage": {
+      "main": [
+        [
+          { "node": "Build Image URL", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond Error", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Build Image URL": {
+      "main": [
+        [
+          { "node": "Insert Customer", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert Customer": {
+      "main": [
+        [
+          { "node": "Respond Success", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Respond Error", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "customer-intake-webhook"
+  },
+  "settings": {
+    "errorWorkflow": ""
+  }
+}

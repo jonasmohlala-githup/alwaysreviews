@@ -1,0 +1,252 @@
+{
+  "name": "Google GBP Send Review Request",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -768,
+        -80
+      ],
+      "id": "9d67ea30-795a-4876-829c-16f46d9b6966",
+      "name": "Every Day"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select c.id as customer_id, c.business_id, c.first_name, c.full_name, c.phone, c.email,\n       c.project_image_url,\n       b.business_name, b.review_request_link, b.whatsapp_sender_number,\n       coalesce(a.attempt_count, 0) as attempt_count,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.whatsapp_template_1\n         when 2 then b.whatsapp_template_2\n         when 3 then b.whatsapp_template_3\n         when 4 then b.whatsapp_template_4\n       end as whatsapp_template,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_subject_1\n         when 2 then b.email_subject_2\n         when 3 then b.email_subject_3\n         when 4 then b.email_subject_4\n       end as email_subject,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_intro_1\n         when 2 then b.email_intro_2\n         when 3 then b.email_intro_3\n         when 4 then b.email_intro_4\n       end as email_intro\nfrom customers c\njoin businesses b on b.id = c.business_id\nleft join (\n  select customer_id, count(*) as attempt_count, max(timestamp) as last_attempt_at\n  from activities\n  where activity_type = 'Request Sent'\n  group by customer_id\n) a on a.customer_id = c.id\nwhere c.opt_out = false\n  and c.do_not_call = false\n  and c.consent_optin = true\n  and b.status = 'Active'\n  and coalesce(a.attempt_count, 0) < 4\n  and not exists (\n    select 1 from activities r\n    where r.customer_id = c.id and r.review_received = true\n  )\n  and (\n    a.last_attempt_at is null\n    or a.last_attempt_at <= now() - (\n      case coalesce(a.attempt_count, 0)\n        when 1 then interval '5 days'\n        when 2 then interval '10 days'\n        when 3 then interval '20 days'\n      end\n    )\n  )",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -576,
+        -80
+      ],
+      "id": "92b57e81-7119-4a84-b1f5-fb72521cdc3d",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "e9GxiQhwC0aauRIZ",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "96e86cfb-2b35-4f0d-9bff-2fe2c3231ed8",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -352,
+        -80
+      ],
+      "id": "96d92870-8128-4958-8e2d-327887745751",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://chatflow.pabbly.com/api/v1/broadcasts/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  templateName: $json.whatsapp_template,\n  campaignName: \"request_review\",\n  destination: $json.phone,\n  userName: $json.first_name,\n  headerParams: [],\n  bodyParams: [$json.first_name, $json.business_name],\n  source: \"api\",\n  link: $json.project_image_url\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -80,
+        32
+      ],
+      "id": "af6b057a-0081-41d5-9f7b-74f4c0f8fb49",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_PABBLY_CHATFLOW_CREDENTIAL_ID",
+          "name": "pabblyChatflowApi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.email_subject.replace('{{business_name}}', $json.business_name).replace('{{first_name}}', $json.first_name) }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;\">\n  <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin: 0 auto 20px auto;\">\n    <tr>\n      <td width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; border-radius: 8px; overflow: hidden;\">\n        <img src=\"{{ $json.project_image_url || 'https://images.pexels.com/photos/38135743/pexels-photo-38135743.jpeg' }}\" alt=\"Your project\" width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; object-fit: cover; display: block; border-radius: 8px;\" />\n      </td>\n    </tr>\n  </table>\n\n  <p>Hi {{ $json.first_name }},</p>\n\n  <p>{{ $json.email_intro }}</p>\n\n  <p>Could you leave us a quick Google review?</p>\n\n  <p style=\"text-align: left; margin: 30px 0;\">\n    <a href=\"{{ $json.review_request_link }}\"\n       style=\"background-color: #f9ab00; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;\">\n      Leave a Review\n    </a>\n  </p>\n\n  <p>It only takes a minute.</p>\n\n  <p>Thank you!</p>\n\n  <p>— {{ $json.business_name }}</p>\n</div>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -80,
+        -160
+      ],
+      "id": "eefc5505-29d5-4437-bfb2-8cee6f91a5d0",
+      "name": "Send a message",
+      "webhookId": "36e2aec7-e97a-43f1-88fd-3a8cb1bd6800",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "ulywzULBmWeNyd1R",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  '{{ $json.business_id }}',\n  '{{ $json.customer_id }}',\n  'Request Sent',\n  'Sent',\n  'WhatsApp',\n  '{{ $json.whatsapp_template }}',\n  '{{ $json.project_image_url }}',\n  {{ $json.attempt_count + 1 }},\n  'Sent via n8n WhatsApp (Pabbly Chatflow) workflow — attempt {{ $json.attempt_count + 1 }}'\n)\nreturning id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        140,
+        32
+      ],
+      "id": "b2c2c2c2-0001-4000-8000-000000000001",
+      "name": "Log WhatsApp Send",
+      "credentials": {
+        "postgres": {
+          "id": "e9GxiQhwC0aauRIZ",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  '{{ $json.business_id }}',\n  '{{ $json.customer_id }}',\n  'Request Sent',\n  'Sent',\n  'Email',\n  '{{ $json.email_subject }}',\n  '{{ $json.project_image_url }}',\n  {{ $json.attempt_count + 1 }},\n  'Sent via n8n email workflow — attempt {{ $json.attempt_count + 1 }}'\n)\nreturning id;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        140,
+        -160
+      ],
+      "id": "b2c2c2c2-0002-4000-8000-000000000002",
+      "name": "Log Email Send",
+      "credentials": {
+        "postgres": {
+          "id": "e9GxiQhwC0aauRIZ",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every Day": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Log WhatsApp Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Log Email Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "ebd20e65-1810-4edf-9a11-b555a94e8fbd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "543722f5a7e1462fd7fd16dd6bc3edb5d005c4febffc8aa54b8464c42a4391c1"
+  },
+  "id": "c_3uuwcDQ79CHT1MJTfOQ",
+  "tags": []
+}

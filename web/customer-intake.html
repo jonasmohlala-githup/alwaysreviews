@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Add a Customer</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --card-bg: #ffffff;
+    --text: #1a1a1a;
+    --muted: #666;
+    --border: #e2e2e2;
+    --accent: #f9ab00;
+    --accent-text: #ffffff;
+    --error: #c0392b;
+    --success: #1e8e3e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 40px 16px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    max-width: 440px;
+    width: 100%;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px 0; }
+  p.subtitle { color: var(--muted); font-size: 14px; margin: 0 0 24px 0; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 16px 0 6px 0; }
+  input[type="text"], input[type="email"], input[type="tel"], input[type="date"], input[type="file"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  input[type="checkbox"] { width: 16px; height: 16px; margin-right: 8px; vertical-align: middle; }
+  .checkbox-row { display: flex; align-items: center; margin-top: 16px; }
+  .checkbox-row label { margin: 0; font-weight: 400; }
+  button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 24px;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  button.secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    margin-top: 12px;
+  }
+  .msg { font-size: 13px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; display: none; }
+  .msg.error { display: block; background: #fdecea; color: var(--error); }
+  .msg.success { display: block; background: #e6f4ea; color: var(--success); }
+  .whoami { font-size: 13px; color: var(--muted); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .whoami button { width: auto; padding: 6px 12px; margin: 0; font-size: 12px; }
+  #loginView, #formView { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <div id="loginView">
+    <h1>Add a Customer</h1>
+    <p class="subtitle">Sign in with your business email to continue.</p>
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" placeholder="you@yourbusiness.com" />
+    <button id="sendLinkBtn">Send login link</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+
+  <div id="formView">
+    <div class="whoami">
+      <span id="whoamiText"></span>
+      <button id="signOutBtn">Sign out</button>
+    </div>
+    <h1>Add a Customer</h1>
+    <p class="subtitle">Enter their details and, if you have one, a photo of their project.</p>
+
+    <form id="customerForm">
+      <label for="firstName">First name *</label>
+      <input type="text" id="firstName" required />
+
+      <label for="fullName">Full name</label>
+      <input type="text" id="fullName" />
+
+      <label for="phone">Phone (WhatsApp, e.g. 27821234567)</label>
+      <input type="tel" id="phone" />
+
+      <label for="email">Email</label>
+      <input type="email" id="email" />
+
+      <label for="serviceType">Service / job type</label>
+      <input type="text" id="serviceType" />
+
+      <label for="jobDate">Job completion date</label>
+      <input type="date" id="jobDate" />
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="consent" />
+        <label for="consent">This customer has agreed to be contacted about leaving a review</label>
+      </div>
+
+      <label for="photo">Project photo (optional)</label>
+      <input type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp,image/heic" />
+
+      <button type="submit" id="submitBtn">Add customer</button>
+    </form>
+    <div id="formMsg" class="msg"></div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  // --- Config ---
+  const SUPABASE_URL = "https://xbmoomufmxicwymwbovg.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_0_B9DhekLQRu5mx0Im7MZA_DbyyUlPw";
+  const STORAGE_BUCKET = "customer-project-images";
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const loginView = document.getElementById("loginView");
+  const formView = document.getElementById("formView");
+  const loginMsg = document.getElementById("loginMsg");
+  const formMsg = document.getElementById("formMsg");
+  const whoamiText = document.getElementById("whoamiText");
+
+  function showMsg(el, text, type) {
+    el.textContent = text;
+    el.className = "msg " + type;
+  }
+
+  function clearMsg(el) {
+    el.textContent = "";
+    el.className = "msg";
+  }
+
+  async function refreshView() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      loginView.style.display = "none";
+      formView.style.display = "block";
+      whoamiText.textContent = "Signed in as " + session.user.email;
+    } else {
+      loginView.style.display = "block";
+      formView.style.display = "none";
+    }
+  }
+
+  document.getElementById("sendLinkBtn").addEventListener("click", async () => {
+    const email = document.getElementById("loginEmail").value.trim();
+    if (!email) {
+      showMsg(loginMsg, "Please enter your email.", "error");
+      return;
+    }
+    document.getElementById("sendLinkBtn").disabled = true;
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.href }
+    });
+    document.getElementById("sendLinkBtn").disabled = false;
+    if (error) {
+      showMsg(loginMsg, error.message, "error");
+    } else {
+      showMsg(loginMsg, "Check your email for a login link.", "success");
+    }
+  });
+
+  document.getElementById("signOutBtn").addEventListener("click", async () => {
+    await sb.auth.signOut();
+    await refreshView();
+  });
+
+  document.getElementById("customerForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearMsg(formMsg);
+
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Adding...";
+
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error("You are not signed in.");
+
+      // RLS scopes this to the businesses this user belongs to; a staff member
+      // linked to exactly one business will get exactly one row back here.
+      const { data: memberships, error: memberError } = await sb
+        .from("business_members")
+        .select("business_id")
+        .eq("user_id", session.user.id)
+        .limit(1);
+
+      if (memberError) throw memberError;
+      if (!memberships || memberships.length === 0) {
+        throw new Error("Your account is not linked to a business yet. Contact the person who set up your access.");
+      }
+      const businessId = memberships[0].business_id;
+
+      let projectImageUrl = null;
+      const photoInput = document.getElementById("photo");
+      if (photoInput.files.length > 0) {
+        const file = photoInput.files[0];
+        const ext = file.name.split(".").pop();
+        const path = `${businessId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        const { error: uploadError } = await sb.storage
+          .from(STORAGE_BUCKET)
+          .upload(path, file, { contentType: file.type });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = sb.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(path);
+        projectImageUrl = publicUrlData.publicUrl;
+      }
+
+      const jobDateValue = document.getElementById("jobDate").value;
+
+      const { error: insertError } = await sb.from("customers").insert({
+        business_id: businessId,
+        first_name: document.getElementById("firstName").value.trim(),
+        full_name: document.getElementById("fullName").value.trim() || null,
+        phone: document.getElementById("phone").value.trim() || null,
+        email: document.getElementById("email").value.trim() || null,
+        service_type: document.getElementById("serviceType").value.trim() || null,
+        job_completion_date: jobDateValue || null,
+        consent_optin: document.getElementById("consent").checked,
+        source: "Business self-serve form (authenticated)",
+        project_image_url: projectImageUrl
+      });
+
+      if (insertError) throw insertError;
+
+      showMsg(formMsg, "Customer added successfully.", "success");
+      document.getElementById("customerForm").reset();
+    } catch (err) {
+      showMsg(formMsg, err.message || "Something went wrong.", "error");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add customer";
+    }
+  });
+
+  sb.auth.onAuthStateChange(() => {
+    refreshView();
+  });
+
+  refreshView();
+</script>
+</body>
+</html>

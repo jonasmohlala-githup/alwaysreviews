@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Always Reviews</div>
+  <nav>
+    <a href="dashboard.html" class="active">Dashboard</a>
+    <a href="add-customer.html">Add Customer</a>
+    <a href="customers.html">Customers</a>
+    <a href="settings.html">Settings</a>
+  </nav>
+  <div class="whoami">
+    <span id="whoamiText"></span>
+    <button id="signOutBtn" class="secondary">Sign out</button>
+  </div>
+</div>
+
+<div class="container">
+  <h1 id="businessHeading">Activity</h1>
+  <p class="subtitle">A summary of your review requests and results.</p>
+
+  <div id="loadingState" class="loading">Loading...</div>
+
+  <div id="dashboardContent" style="display:none;">
+    <div class="stats-grid">
+      <div class="stat-tile">
+        <div class="value" id="statSent">0</div>
+        <div class="label">Requests sent</div>
+      </div>
+      <div class="stat-tile">
+        <div class="value" id="statReceived">0</div>
+        <div class="label">Reviews received</div>
+      </div>
+      <div class="stat-tile">
+        <div class="value" id="statConversion">0%</div>
+        <div class="label">Conversion rate</div>
+      </div>
+      <div class="stat-tile">
+        <div class="value" id="statAvgRating">–</div>
+        <div class="label">Average rating</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Channel</th>
+            <th>Status</th>
+            <th>Rating</th>
+            <th>Comment</th>
+          </tr>
+        </thead>
+        <tbody id="activityRows"></tbody>
+      </table>
+      <div id="emptyState" class="empty-state" style="display:none;">No activity yet.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js"></script>
+<script>
+  const whoamiText = document.getElementById("whoamiText");
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  function statusBadgeClass(status) {
+    const s = (status || "").toLowerCase();
+    if (s === "completed") return "completed";
+    if (s === "pending") return "pending";
+    if (s === "failed") return "failed";
+    return "sent";
+  }
+
+  function starDisplay(n) {
+    if (!n) return "";
+    return '<span class="stars">' + "★".repeat(n) + "☆".repeat(5 - n) + "</span>";
+  }
+
+  async function requireAuthAndLoad() {
+    const session = await getSession();
+    if (!session) {
+      window.location.href = "index.html";
+      return;
+    }
+    whoamiText.textContent = "Signed in as " + session.user.email;
+
+    let businessId;
+    try {
+      businessId = await getCurrentBusinessId(session.user.id);
+    } catch (err) {
+      document.getElementById("loadingState").textContent = err.message;
+      return;
+    }
+
+    // RLS already scopes this to the caller's own business, but filtering
+    // explicitly keeps the query's intent clear and avoids relying solely
+    // on the policy if this code is ever reused with a service-role client.
+    const { data: business } = await sb
+      .from("businesses")
+      .select("business_name")
+      .eq("id", businessId)
+      .single();
+
+    if (business) {
+      document.getElementById("businessHeading").textContent = business.business_name + " — Activity";
+    }
+
+    const { data: activities, error } = await sb
+      .from("activities")
+      .select("timestamp, activity_type, channel, activity_status, star_number, review_comment, review_received")
+      .eq("business_id", businessId)
+      .order("timestamp", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      document.getElementById("loadingState").textContent = "Could not load activity: " + error.message;
+      return;
+    }
+
+    renderStats(activities || []);
+    renderTable(activities || []);
+
+    document.getElementById("loadingState").style.display = "none";
+    document.getElementById("dashboardContent").style.display = "block";
+  }
+
+  function renderStats(rows) {
+    const sent = rows.filter(r => r.activity_type === "Request Sent").length;
+    const received = rows.filter(r => r.review_received).length;
+    const conversion = sent > 0 ? Math.round((received / sent) * 100) : 0;
+
+    const ratings = rows.filter(r => r.star_number).map(r => r.star_number);
+    const avgRating = ratings.length > 0
+      ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
+      : "–";
+
+    document.getElementById("statSent").textContent = sent;
+    document.getElementById("statReceived").textContent = received;
+    document.getElementById("statConversion").textContent = conversion + "%";
+    document.getElementById("statAvgRating").textContent = avgRating;
+  }
+
+  function renderTable(rows) {
+    const tbody = document.getElementById("activityRows");
+    const emptyState = document.getElementById("emptyState");
+
+    if (rows.length === 0) {
+      emptyState.style.display = "block";
+      return;
+    }
+
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${formatDate(r.timestamp)}</td>
+        <td>${escapeHtml(r.activity_type)}</td>
+        <td>${escapeHtml(r.channel || "–")}</td>
+        <td><span class="badge ${statusBadgeClass(r.activity_status)}">${escapeHtml(r.activity_status || "–")}</span></td>
+        <td>${starDisplay(r.star_number)}</td>
+        <td>${escapeHtml(r.review_comment ? (r.review_comment.length > 60 ? r.review_comment.slice(0, 60) + "…" : r.review_comment) : "")}</td>
+      </tr>
+    `).join("");
+  }
+
+  document.getElementById("signOutBtn").addEventListener("click", async () => {
+    await signOut();
+    window.location.href = "index.html";
+  });
+
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") window.location.href = "index.html";
+  });
+
+  requireAuthAndLoad();
+</script>
+</body>
+</html>

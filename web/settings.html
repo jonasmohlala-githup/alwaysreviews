@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Settings</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Always Reviews</div>
+  <nav>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="add-customer.html">Add Customer</a>
+    <a href="customers.html">Customers</a>
+    <a href="settings.html" class="active">Settings</a>
+  </nav>
+  <div class="whoami">
+    <span id="whoamiText"></span>
+    <button id="signOutBtn" class="secondary">Sign out</button>
+  </div>
+</div>
+
+<div class="page-center">
+  <div class="card">
+    <h1>Business Settings</h1>
+    <p class="subtitle">Manage your business's contact details and review request status.</p>
+
+    <div id="loadingState" class="loading">Loading...</div>
+
+    <form id="settingsForm" style="display:none;">
+      <label for="businessName">Business name</label>
+      <input type="text" id="businessName" disabled />
+
+      <label for="contactPerson">Contact person</label>
+      <input type="text" id="contactPerson" />
+
+      <label for="contactEmail">Contact email</label>
+      <input type="email" id="contactEmail" />
+
+      <label for="contactPhone">Contact phone</label>
+      <input type="tel" id="contactPhone" />
+
+      <label for="status">Status</label>
+      <select id="status">
+        <option value="Active">Active — sending review requests</option>
+        <option value="Paused">Paused — no requests will be sent</option>
+      </select>
+      <p class="subtitle" style="margin-top:6px;">While Paused, no new review requests or follow-ups will be sent to any of your customers. Existing customer data is kept.</p>
+
+      <button type="submit" id="saveBtn" class="full-width">Save changes</button>
+    </form>
+    <div id="formMsg" class="msg"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js"></script>
+<script>
+  const whoamiText = document.getElementById("whoamiText");
+  const formMsg = document.getElementById("formMsg");
+  let businessId;
+
+  function showMsg(el, text, type) {
+    el.textContent = text;
+    el.className = "msg " + type;
+  }
+  function clearMsg(el) {
+    el.textContent = "";
+    el.className = "msg";
+  }
+
+  async function requireAuthAndLoad() {
+    const session = await getSession();
+    if (!session) {
+      window.location.href = "index.html";
+      return;
+    }
+    whoamiText.textContent = "Signed in as " + session.user.email;
+
+    try {
+      businessId = await getCurrentBusinessId(session.user.id);
+    } catch (err) {
+      document.getElementById("loadingState").textContent = err.message;
+      return;
+    }
+
+    const { data: business, error } = await sb
+      .from("businesses")
+      .select("business_name, contact_person, contact_email, contact_phone, status")
+      .eq("id", businessId)
+      .single();
+
+    if (error || !business) {
+      document.getElementById("loadingState").textContent = "Could not load business settings: " + (error ? error.message : "not found");
+      return;
+    }
+
+    document.getElementById("businessName").value = business.business_name || "";
+    document.getElementById("contactPerson").value = business.contact_person || "";
+    document.getElementById("contactEmail").value = business.contact_email || "";
+    document.getElementById("contactPhone").value = business.contact_phone || "";
+    document.getElementById("status").value = business.status || "Active";
+
+    document.getElementById("loadingState").style.display = "none";
+    document.getElementById("settingsForm").style.display = "block";
+  }
+
+  document.getElementById("settingsForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearMsg(formMsg);
+
+    const saveBtn = document.getElementById("saveBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving...";
+
+    try {
+      const { error } = await sb
+        .from("businesses")
+        .update({
+          contact_person: document.getElementById("contactPerson").value.trim() || null,
+          contact_email: document.getElementById("contactEmail").value.trim() || null,
+          contact_phone: document.getElementById("contactPhone").value.trim() || null,
+          status: document.getElementById("status").value
+        })
+        .eq("id", businessId);
+
+      if (error) throw error;
+
+      showMsg(formMsg, "Settings saved.", "success");
+    } catch (err) {
+      showMsg(formMsg, err.message || "Something went wrong.", "error");
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save changes";
+    }
+  });
+
+  document.getElementById("signOutBtn").addEventListener("click", async () => {
+    await signOut();
+    window.location.href = "index.html";
+  });
+
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") window.location.href = "index.html";
+  });
+
+  requireAuthAndLoad();
+</script>
+</body>
+</html>

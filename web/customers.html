@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Customers</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Always Reviews</div>
+  <nav>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="add-customer.html">Add Customer</a>
+    <a href="customers.html" class="active">Customers</a>
+    <a href="settings.html">Settings</a>
+  </nav>
+  <div class="whoami">
+    <span id="whoamiText"></span>
+    <button id="signOutBtn" class="secondary">Sign out</button>
+  </div>
+</div>
+
+<div class="container">
+  <h1>Customers</h1>
+  <p class="subtitle">Manage your customers and their contact status. Set a customer to "Opted Out" or "Do Not Call" to stop future review requests.</p>
+
+  <div id="loadingState" class="loading">Loading...</div>
+
+  <div id="customersContent" style="display:none;">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Service</th>
+            <th>Added</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="customerRows"></tbody>
+      </table>
+      <div id="emptyState" class="empty-state" style="display:none;">No customers yet.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js"></script>
+<script>
+  const whoamiText = document.getElementById("whoamiText");
+  let businessId;
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  // Maps the two underlying booleans to a single status for the UI.
+  // do_not_call takes priority if a customer somehow has both set.
+  function statusFromCustomer(c) {
+    if (c.do_not_call) return "do_not_call";
+    if (c.opt_out) return "opt_out";
+    return "active";
+  }
+
+  function statusSelectClass(status) {
+    if (status === "do_not_call") return "do-not-call";
+    if (status === "opt_out") return "opted-out";
+    return "active";
+  }
+
+  async function requireAuthAndLoad() {
+    const session = await getSession();
+    if (!session) {
+      window.location.href = "index.html";
+      return;
+    }
+    whoamiText.textContent = "Signed in as " + session.user.email;
+
+    try {
+      businessId = await getCurrentBusinessId(session.user.id);
+    } catch (err) {
+      document.getElementById("loadingState").textContent = err.message;
+      return;
+    }
+
+    await loadCustomers();
+  }
+
+  async function loadCustomers() {
+    const { data: customers, error } = await sb
+      .from("customers")
+      .select("id, first_name, full_name, phone, email, service_type, date_added, opt_out, do_not_call")
+      .eq("business_id", businessId)
+      .order("date_added", { ascending: false });
+
+    if (error) {
+      document.getElementById("loadingState").textContent = "Could not load customers: " + error.message;
+      return;
+    }
+
+    renderTable(customers || []);
+
+    document.getElementById("loadingState").style.display = "none";
+    document.getElementById("customersContent").style.display = "block";
+  }
+
+  function renderTable(rows) {
+    const tbody = document.getElementById("customerRows");
+    const emptyState = document.getElementById("emptyState");
+
+    if (rows.length === 0) {
+      emptyState.style.display = "block";
+      return;
+    }
+
+    tbody.innerHTML = rows.map(c => {
+      const status = statusFromCustomer(c);
+      return `
+      <tr>
+        <td>${escapeHtml(c.full_name || c.first_name)}</td>
+        <td>${escapeHtml(c.phone || "–")}</td>
+        <td>${escapeHtml(c.email || "–")}</td>
+        <td>${escapeHtml(c.service_type || "–")}</td>
+        <td>${formatDate(c.date_added)}</td>
+        <td>
+          <select class="status-select ${statusSelectClass(status)}" data-customer-id="${c.id}">
+            <option value="active" ${status === "active" ? "selected" : ""}>Active</option>
+            <option value="opt_out" ${status === "opt_out" ? "selected" : ""}>Opted Out</option>
+            <option value="do_not_call" ${status === "do_not_call" ? "selected" : ""}>Do Not Call</option>
+          </select>
+        </td>
+      </tr>
+    `;
+    }).join("");
+
+    tbody.querySelectorAll(".status-select").forEach(select => {
+      select.addEventListener("change", onStatusChange);
+    });
+  }
+
+  async function onStatusChange(e) {
+    const select = e.target;
+    const customerId = select.dataset.customerId;
+    const newStatus = select.value;
+    const previousClass = select.className;
+
+    select.disabled = true;
+
+    const update = {
+      opt_out: newStatus === "opt_out",
+      do_not_call: newStatus === "do_not_call"
+    };
+
+    const { error } = await sb.from("customers").update(update).eq("id", customerId);
+
+    select.disabled = false;
+
+    if (error) {
+      alert("Could not update status: " + error.message);
+      select.className = previousClass;
+      return;
+    }
+
+    select.className = "status-select " + statusSelectClass(newStatus);
+  }
+
+  document.getElementById("signOutBtn").addEventListener("click", async () => {
+    await signOut();
+    window.location.href = "index.html";
+  });
+
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") window.location.href = "index.html";
+  });
+
+  requireAuthAndLoad();
+</script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Add a Customer</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Always Reviews</div>
+  <nav>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="add-customer.html" class="active">Add Customer</a>
+    <a href="customers.html">Customers</a>
+    <a href="settings.html">Settings</a>
+  </nav>
+  <div class="whoami">
+    <span id="whoamiText"></span>
+    <button id="signOutBtn" class="secondary">Sign out</button>
+  </div>
+</div>
+
+<div class="page-center">
+  <div class="card">
+    <h1>Add a Customer</h1>
+    <p class="subtitle">Enter their details and, if you have one, a photo of their project.</p>
+
+    <form id="customerForm">
+      <label for="firstName">First name *</label>
+      <input type="text" id="firstName" required />
+
+      <label for="fullName">Full name</label>
+      <input type="text" id="fullName" />
+
+      <label for="phone">Phone (WhatsApp, e.g. 27821234567)</label>
+      <input type="tel" id="phone" />
+
+      <label for="email">Email</label>
+      <input type="email" id="email" />
+
+      <label for="serviceType">Service / job type</label>
+      <input type="text" id="serviceType" />
+
+      <label for="jobDate">Job completion date</label>
+      <input type="date" id="jobDate" />
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="consent" />
+        <label for="consent">This customer has agreed to be contacted about leaving a review</label>
+      </div>
+
+      <label for="photo">Project photo (optional)</label>
+      <input type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp,image/heic" />
+
+      <button type="submit" id="submitBtn" class="full-width">Add customer</button>
+    </form>
+    <div id="formMsg" class="msg"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js"></script>
+<script>
+  const CUSTOMER_INTAKE_WEBHOOK_URL = "https://n8n.ai4smartautomations.com/webhook/customer-intake";
+
+  const formMsg = document.getElementById("formMsg");
+  const whoamiText = document.getElementById("whoamiText");
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function showMsg(el, text, type) {
+    el.textContent = text;
+    el.className = "msg " + type;
+  }
+  function clearMsg(el) {
+    el.textContent = "";
+    el.className = "msg";
+  }
+
+  let currentSession = null;
+
+  async function requireAuth() {
+    currentSession = await getSession();
+    if (!currentSession) {
+      window.location.href = "index.html";
+      return;
+    }
+    whoamiText.textContent = "Signed in as " + currentSession.user.email;
+  }
+
+  document.getElementById("signOutBtn").addEventListener("click", async () => {
+    await signOut();
+    window.location.href = "index.html";
+  });
+
+  document.getElementById("customerForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearMsg(formMsg);
+
+    const submitBtn = document.getElementById("submitBtn");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Adding...";
+
+    try {
+      if (!currentSession) throw new Error("You are not signed in.");
+      const businessId = await getCurrentBusinessId(currentSession.user.id);
+
+      const photoInput = document.getElementById("photo");
+      let photoPayload = {};
+      if (photoInput.files.length > 0) {
+        const file = photoInput.files[0];
+        const ext = file.name.split(".").pop();
+        const base64 = await fileToBase64(file);
+        photoPayload = {
+          photo_base64: base64,
+          photo_mime_type: file.type,
+          photo_ext: ext
+        };
+      }
+
+      const jobDateValue = document.getElementById("jobDate").value;
+
+      const response = await fetch(CUSTOMER_INTAKE_WEBHOOK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_id: businessId,
+          first_name: document.getElementById("firstName").value.trim(),
+          full_name: document.getElementById("fullName").value.trim() || null,
+          phone: document.getElementById("phone").value.trim() || null,
+          email: document.getElementById("email").value.trim() || null,
+          service_type: document.getElementById("serviceType").value.trim() || null,
+          job_completion_date: jobDateValue || null,
+          consent_optin: document.getElementById("consent").checked,
+          ...photoPayload
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Something went wrong adding the customer.");
+      }
+
+      showMsg(formMsg, "Customer added successfully.", "success");
+      document.getElementById("customerForm").reset();
+    } catch (err) {
+      showMsg(formMsg, err.message || "Something went wrong.", "error");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add customer";
+    }
+  });
+
+  sb.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_OUT") window.location.href = "index.html";
+  });
+
+  requireAuth();
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+
+node_modules/
+.vercel/
+
+*.log
+.DS_Store
+Thumbs.db
+
+# Claude Code local config/skills -- not part of the app, spans unrelated projects
+.claude/
+AGENTS.md
+CLAUDE.md
+
+# Supabase CLI local session cache (project ref, pooler URL, version pins)
+supabase/.temp/
