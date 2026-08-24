@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Always Reviews Messaging Framework</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #FAF8F4;
+    --surface: #FFFFFF;
+    --ink: #1F1B16;
+    --muted: #6B6255;
+    --faint: #9A9184;
+    --accent: #B8862E;
+    --accent-ink: #7A5A1E;
+    --accent-soft: #F3E8D2;
+    --line: #E4DFD5;
+    --line-strong: #D3CBBC;
+    --good: #4B7A51;
+    --good-soft: #E7EFE3;
+    --warn: #A85A2E;
+    --warn-soft: #F3E3D2;
+    --bad: #B8453A;
+    --bad-soft: #F5E2DF;
+    --shadow: 0 1px 2px rgba(31,27,22,0.04), 0 4px 16px rgba(31,27,22,0.03);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140F;
+      --surface: #1E1A14;
+      --ink: #F1ECE2;
+      --muted: #B3A991;
+      --faint: #7E7563;
+      --accent: #D9A94A;
+      --accent-ink: #E8C179;
+      --accent-soft: #322813;
+      --line: #342E23;
+      --line-strong: #443C2C;
+      --good: #7FAE7F;
+      --good-soft: #21281F;
+      --warn: #D08A5C;
+      --warn-soft: #2E2318;
+      --bad: #E0837A;
+      --bad-soft: #2E1E1B;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.25);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #17140F;
+    --surface: #1E1A14;
+    --ink: #F1ECE2;
+    --muted: #B3A991;
+    --faint: #7E7563;
+    --accent: #D9A94A;
+    --accent-ink: #E8C179;
+    --accent-soft: #322813;
+    --line: #342E23;
+    --line-strong: #443C2C;
+    --good: #7FAE7F;
+    --good-soft: #21281F;
+    --warn: #D08A5C;
+    --warn-soft: #2E2318;
+    --bad: #E0837A;
+    --bad-soft: #2E1E1B;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Source Sans 3', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 16.5px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 24px 120px;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--accent-ink); }
+  a { color: var(--accent-ink); text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+  a:hover { text-decoration-color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .page { max-width: 840px; margin: 0 auto; }
+
+  .masthead { padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent-ink); display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif; font-weight: 500;
+    font-size: clamp(2.1rem, 4.2vw, 2.9rem); line-height: 1.08; letter-spacing: -0.01em;
+    margin: 0 0 14px; text-wrap: balance;
+  }
+  .dek { font-size: 1.08rem; color: var(--muted); max-width: 640px; margin: 0; text-wrap: pretty; }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 24px; margin-top: 28px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--faint);
+  }
+  .meta-row strong { color: var(--muted); font-weight: 500; }
+
+  section.block {
+    padding: 48px 0; border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 32px;
+  }
+  section.block:last-of-type { border-bottom: none; }
+  .rail {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--faint); padding-top: 4px;
+  }
+  .rail .n { color: var(--accent-ink); font-weight: 500; }
+
+  .content h2 {
+    font-family: 'Fraunces', Georgia, serif; font-weight: 500; font-size: 1.55rem;
+    margin: 0 0 8px; letter-spacing: -0.005em;
+  }
+  .content .lede { color: var(--muted); margin: 0 0 26px; max-width: 62ch; }
+  .content p { max-width: 68ch; }
+  .content h3 {
+    font-family: 'Source Sans 3', sans-serif; font-weight: 700; font-size: 0.95rem;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink); margin: 30px 0 12px;
+  }
+  .content h3:first-child { margin-top: 0; }
+
+  /* Source vs Adaptation comparison */
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 10px;
+    overflow: hidden; margin: 8px 0 0;
+  }
+  .compare > div { background: var(--surface); padding: 16px 18px; }
+  .compare .label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.05em; margin-bottom: 8px; display: block;
+  }
+  .compare .source .label { color: var(--faint); }
+  .compare .adapt .label { color: var(--accent-ink); }
+  .compare p { margin: 0; font-size: 0.94rem; max-width: none; }
+
+  /* Headline option cards */
+  .headline-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px 22px; margin-top: 14px; box-shadow: var(--shadow);
+  }
+  .headline-card .tag {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--accent-ink); margin-bottom: 10px; display: block;
+  }
+  .headline-card .headline {
+    font-family: 'Fraunces', serif; font-size: 1.3rem; font-weight: 500;
+    line-height: 1.25; margin: 0 0 8px; color: var(--ink);
+  }
+  .headline-card .sub { color: var(--muted); font-size: 0.94rem; margin: 0; }
+
+  /* Feature -> benefit table */
+  .table-wrap { overflow-x: auto; margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; min-width: 560px; }
+  th {
+    text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); font-weight: 500;
+    padding: 0 14px 10px 0; border-bottom: 1px solid var(--line-strong);
+  }
+  td { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+  td.muted { color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+
+  /* Do / Don't */
+  .dodont { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 8px; }
+  .dodont .box { border-radius: 10px; padding: 18px 20px; border: 1px solid var(--line); }
+  .dodont .do { background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 30%, var(--line)); }
+  .dodont .dont { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 30%, var(--line)); }
+  .dodont .box-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; text-transform: uppercase;
+    letter-spacing: 0.05em; margin: 0 0 10px; font-weight: 500;
+  }
+  .dodont .do .box-label { color: var(--good); }
+  .dodont .dont .box-label { color: var(--bad); }
+  .dodont ul { margin: 0; padding-left: 18px; font-size: 0.92rem; }
+  .dodont li { margin-bottom: 6px; }
+  .dodont li:last-child { margin-bottom: 0; }
+
+  /* Proof point stat cards */
+  .proofs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 8px; }
+  .proof { background: var(--surface); padding: 16px 18px; }
+  .proof-val { font-family: 'IBM Plex Mono', monospace; font-size: 1.15rem; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+  .proof-label { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+  /* Voice word list */
+  .word-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+  .word-cols h4 {
+    font-family: 'Source Sans 3', sans-serif; font-size: 0.85rem; text-transform: uppercase;
+    letter-spacing: 0.04em; margin: 0 0 10px;
+  }
+  .word-cols .use h4 { color: var(--good); }
+  .word-cols .avoid h4 { color: var(--bad); }
+  .word-cols ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .word-cols li {
+    font-size: 0.86rem; padding: 4px 10px; border-radius: 100px; border: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  footer {
+    max-width: 840px; margin: 0 auto; padding-top: 40px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint);
+  }
+
+  @media (max-width: 640px) {
+    section.block { grid-template-columns: 1fr; gap: 8px; }
+    .rail { display: flex; align-items: center; gap: 8px; }
+    .compare, .dodont, .word-cols { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    section.block, .masthead { animation: rise 0.5s ease-out both; }
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="masthead">
+    <div class="eyebrow"><span class="dot"></span>Messaging &amp; positioning framework</div>
+    <h1>How Always Reviews talks about itself</h1>
+    <p class="dek">Built from a structural teardown of two references — NiceJob (category leader, broad SMB) and Review Harvest (the direct namesake and closer analog: same home-services niche, same solo-operator buyer). Translated to what's actually true for a one-client, pre-launch product. Pull from here when writing the site, a pitch, or an ad.</p>
+    <div class="meta-row">
+      <span><strong>Prepared</strong> 22 Aug 2026</span>
+      <span><strong>References</strong> get.nicejob.com, reviewharvest.com</span>
+      <span><strong>Stage</strong> 1 pilot client</span>
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="rail"><span class="n">01</span><br>The category leader</div>
+    <div class="content">
+      <h2>What NiceJob does well, and why we can't copy it directly</h2>
+      <p class="lede">NiceJob sells the same core idea — automated review generation for local service businesses — at massive scale (50,000+ businesses, 1.7M+ reviews enabled). Their entire page is built on proof we don't have yet. The structure is worth stealing. The scale claims are not.</p>
+
+      <h3>Their structure, in order</h3>
+      <p>Outcome-first headline → dual low/high-friction CTA → award badges → testimonial wall → four benefit statements → five feature modules with screenshots → more third-party validation → metric-driven testimonials → final CTA. Every section either proves the promise or removes a reason to hesitate.</p>
+
+      <h3>Their headline, exactly as written</h3>
+      <p style="font-style: italic; color: var(--muted);">"Easily get more reviews. Outrank local competition. Win more sales."</p>
+      <p>Three outcomes, stacked, each one a rung up the ladder from the last (more reviews → better ranking → more revenue). Not a feature in sight. That ladder structure — proof point, then what it causes, then what that's worth — is the one thing to take wholesale.</p>
+
+      <h3>Where we deliberately diverge</h3>
+      <div class="dodont">
+        <div class="box do">
+          <p class="box-label">Borrow</p>
+          <ul>
+            <li>Outcome-first headline structure (result → result → result)</li>
+            <li>Feature sections written as benefits, not mechanisms</li>
+            <li>Named, specific proof over vague claims</li>
+            <li>Dual CTA: a free/low-friction path and a talk-to-a-human path</li>
+          </ul>
+        </div>
+        <div class="box dont">
+          <p class="box-label">Don't borrow</p>
+          <ul>
+            <li>Aggregate scale numbers ("50,000+ businesses") — we have one</li>
+            <li>G2/third-party badges — no reviews of us exist yet</li>
+            <li>A five-module enterprise feature grid — we have three workflows</li>
+            <li>Franchise/multi-location messaging — wrong buyer for us right now</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">02</span><br>The closer analog</div>
+    <div class="content">
+      <h2>Review Harvest: same buyer, same niche, real pricing to anchor to</h2>
+      <p class="lede">This is the product the "Always Reviews" project was originally named after (as Review Harvest, before the rebrand). It targets home-service trades specifically — HVAC, roofing, plumbing, pest control, lawn care, moving — not broad SMB. That's a much closer match to the target segment already chosen (see the GTM strategy's target table) than NiceJob's wider net.</p>
+
+      <h3>Their headline, exactly as written</h3>
+      <p style="font-style: italic; color: var(--muted);">"Review Automation for Home Service Businesses" — subhead: "Start Getting the Reviews You Deserve. Start Ranking Higher On Google. Start Getting Chosen Over Your Competition."</p>
+      <p>Same three-beat ladder as NiceJob, but each line opens with "Start" — repetition used as rhythm and as a soft call to action baked into the headline itself, not just the button below it.</p>
+
+      <h3>Where they lead with the problem, not the promise</h3>
+      <p>Unlike NiceJob's benefit-first hero, Review Harvest opens on pain: "No Reviews," "No Time," "No Visibility On Google" — a repeating three-word structure, then a relatable line: <em>"You know you do better work, but new customers don't [know that]."</em> This validates the script-flip already made in the WhatsApp outreach templates — problem-first is the right instinct for this exact buyer, not just a stylistic choice.</p>
+
+      <h3>Real pricing model — worth validating against</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tier</th><th>Price</th><th>Request volume</th></tr></thead>
+          <tbody>
+            <tr><td>Starter</td><td class="muted">$99/mo</td><td class="muted">up to 50 requests</td></tr>
+            <tr><td>Growth</td><td class="muted">$179/mo</td><td class="muted">50–100 requests</td></tr>
+            <tr><td>Pro</td><td class="muted">$279/mo</td><td class="muted">100–300 requests</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>All tiers include the same core feature set (text/email automation, AI responses, CRM integration) — the only axis that changes is request volume, not functionality. This is a meaningfully different model from the flat R450/R750 pricing drafted in the GTM strategy, and worth a deliberate choice rather than a default: volume-based pricing scales revenue with usage automatically, but flat pricing is far easier to say out loud in a first WhatsApp message to a busy owner who's never bought software like this before. Recommend staying flat through the founding cohort, revisit volume-tiering once request counts are actually being tracked at scale.</p>
+
+      <h3>Proof format — theirs is bigger, but the structure transfers directly</h3>
+      <div class="proofs">
+        <div class="proof"><div class="proof-val">+4,356%</div><div class="proof-label">"reviews from 23 to 1,025" — named case study</div></div>
+        <div class="proof"><div class="proof-val">74→423</div><div class="proof-label">reviews in 3 months — named case study</div></div>
+        <div class="proof"><div class="proof-val">Day 3 / 7</div><div class="proof-label">timeline framing — "what happens and when"</div></div>
+      </div>
+      <p>The exact number doesn't transfer (we don't have it yet) but the <strong>shape</strong> does: a named business, a before number, an after number, a time window. The moment Print Express has two data points (reviews before Always Reviews vs. reviews after N weeks), this becomes Option D from the headlines section — filled in with something real, not invented.</p>
+
+      <h3>One phrase worth adopting directly</h3>
+      <p><span style="font-family:'IBM Plex Mono',monospace; font-size:0.9rem; background:var(--accent-soft); color:var(--accent-ink); padding:2px 6px; border-radius:4px;">"Fresh and authentic reviews"</span> — directly pre-empts the one real objection a savvy owner might raise (are these reviews real / is this against Google's terms). Worth having a ready answer even if it never becomes headline copy: Always Reviews never writes a review or asks anyone to review who didn't do business with you — it only removes the friction of the ask itself.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">03</span><br>Positioning</div>
+    <div class="content">
+      <h2>The one sentence that has to be true</h2>
+      <p class="lede">Everything else in this document is a variation on this. If a piece of copy can't be traced back to this sentence, cut it.</p>
+
+      <div class="headline-card">
+        <span class="tag">Core positioning statement</span>
+        <p class="headline">Always Reviews is the review system for local businesses too busy to run one — it asks every customer automatically, follows up when they forget, and tells you the moment a review lands.</p>
+        <p class="sub">Not "reputation marketing software" (NiceJob's category label — accurate for them, too abstract for a first conversation). Not "AI review tool" (leads with the mechanism, not the outcome). The word that has to survive every rewrite is <strong>automatic</strong> — that's the entire wedge against "we already ask sometimes."</p>
+      </div>
+
+      <h3>What we're actually selling, ranked</h3>
+      <p>1. Consistency — every job gets an ask, not just the ones someone remembers. 2. Time back — zero manual follow-up. 3. Peace of mind — instant notification the second any review lands, good or bad. Reviews-as-marketing (more stars, better ranking) is the result of the first three, not the pitch itself — NiceJob leads with the SEO/sales outcome because they're selling to owners who already believe in the system; we're still selling the system.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">04</span><br>Headlines</div>
+    <div class="content">
+      <h2>Five options, NiceJob's ladder structure applied honestly</h2>
+      <p class="lede">Same "result → result → result" shape as their headline, built from claims we can actually stand behind today.</p>
+
+      <div class="headline-card">
+        <span class="tag">Option A — the gap</span>
+        <p class="headline">Nobody's asking your customers for reviews. Always Reviews does — automatically, every time.</p>
+        <p class="sub">Leads with the problem (per the script-flip decided earlier), resolves in the same breath.</p>
+      </div>
+
+      <div class="headline-card">
+        <span class="tag">Option B — the ladder, honest version</span>
+        <p class="headline">Every job asked. Every review noticed. Every good one answered.</p>
+        <p class="sub">Mirrors NiceJob's three-beat structure without inventing scale we don't have — each clause is a real, shippable feature (send workflow, notify workflow, AI-reply workflow).</p>
+      </div>
+
+      <div class="headline-card">
+        <span class="tag">Option C — the time-back angle</span>
+        <p class="headline">Get more Google reviews without spending a single extra minute on it.</p>
+        <p class="sub">Speaks directly to the "too busy to chase reviews" pain identified in outreach testing.</p>
+      </div>
+
+      <div class="headline-card">
+        <span class="tag">Option D — proof-led (use once Print Express has a real number)</span>
+        <p class="headline">[Print Express] went from asking nobody to asking every customer. Here's what happened to their reviews.</p>
+        <p class="sub">Structurally identical to NiceJob's "20 to 130 reviews" testimonials — swap in the real Print Express number the moment it exists. Don't publish this one with a placeholder number.</p>
+      </div>
+
+      <div class="headline-card">
+        <span class="tag">Option E — plain and short</span>
+        <p class="headline">Your customers are happy. Make sure Google knows it.</p>
+        <p class="sub">Shortest, most conversational — closest fit for a WhatsApp opener or ad headline rather than a full landing page hero.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">05</span><br>Feature → benefit</div>
+    <div class="content">
+      <h2>Translate every workflow into what the owner actually feels</h2>
+      <p class="lede">NiceJob's feature modules are written entirely as outcomes ("Reviews," "Referrals," "Website," "Social," "Text & Email") — never as "here's our tech." Same rule applies to our three real workflows.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>What it is (internal)</th><th>What we call it</th><th>What the owner feels</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="muted">Send-review-request workflow, 4-attempt WhatsApp/email follow-up schedule</td>
+              <td>The Ask</td>
+              <td class="muted">"I don't have to remember to ask anyone anymore."</td>
+            </tr>
+            <tr>
+              <td class="muted">Inbound GBP review capture + matching</td>
+              <td>The Watch</td>
+              <td class="muted">"I find out the second someone reviews me — not weeks later by accident."</td>
+            </tr>
+            <tr>
+              <td class="muted">Gemini AI reply for 4-5★, flag-for-human on 1-3★</td>
+              <td>The Reply</td>
+              <td class="muted">"Good reviews get answered so I look responsive. A bad one comes straight to me, so I'm the one who gets to make it right — that's what actually shows customers I care, not a canned reply."</td>
+            </tr>
+            <tr>
+              <td class="muted">Dashboard with conversion rate, star average, activity feed</td>
+              <td>The Proof</td>
+              <td class="muted">"I can see it's actually working, in numbers, whenever I want."</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The rule</h3>
+      <p>If a sentence describes n8n, Supabase, RLS, Gemini, or Pabbly, it doesn't belong in customer-facing copy — not because it's a secret, but because an owner buys an outcome, not an architecture. Save the mechanism for the one moment it builds trust: "how do I know it's secure / my data's not mixed with other businesses" objections, answered plainly rather than technically.</p>
+
+      <h3>Never phrase the low-star handoff as an absence</h3>
+      <p>"We don't auto-reply to bad reviews" is technically accurate and a messaging mistake — it sounds like neglect, the exact thing a business owner is most afraid a review tool will cause. The real story is the opposite: a bad review gets pulled out and handed to the owner specifically <em>because</em> a genuine, personal response does more to save the relationship than any automated one could. Always state it as a hand-off, not a gap — the system noticing and routing it to a human is the feature, not the fallback.</p>
+      <div class="dodont" style="margin-top:14px;">
+        <div class="box dont">
+          <p class="box-label">Reads as neglect</p>
+          <ul>
+            <li>"We don't auto-reply to negative reviews"</li>
+            <li>"1-3★ reviews are excluded from AI replies"</li>
+            <li>"Nothing embarrassing goes out on autopilot"</li>
+          </ul>
+        </div>
+        <div class="box do">
+          <p class="box-label">Reads as care</p>
+          <ul>
+            <li>"A bad review goes straight to you — so you're the one who gets to make it right"</li>
+            <li>"We notify you immediately so you can respond personally, not a bot"</li>
+            <li>"Some things deserve a real person's reply. We make sure you never miss the moment"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">06</span><br>Proof format</div>
+    <div class="content">
+      <h2>How to talk numbers before we have big ones</h2>
+      <p class="lede">NiceJob's proof is aggregate and abstract ("50,000+ businesses"). Ours has to be singular and concrete for now — one real business, named, with real numbers — which is actually a stronger trust signal at this stage than a big vague claim would be.</p>
+
+      <div class="proofs">
+        <div class="proof"><div class="proof-val">1</div><div class="proof-label">named client, real name, real data</div></div>
+        <div class="proof"><div class="proof-val">0</div><div class="proof-label">manual follow-ups sent by Print Express staff</div></div>
+        <div class="proof"><div class="proof-val">4</div><div class="proof-label">follow-up attempts, fully automatic</div></div>
+      </div>
+
+      <h3>How to phrase it until the numbers grow</h3>
+      <p>"This is running for a real local business right now — not a demo" beats any invented statistic. Specificity substitutes for scale: naming Print Express, showing the actual dashboard live (as already planned in the GTM strategy), and quoting Print Express's owner directly once a testimonial exists will out-perform a vague "trusted by businesses like yours" line every time a prospect can tell the difference.</p>
+
+      <h3>What to avoid until it's true</h3>
+      <p>No "trusted by X businesses," no invented percentage increases, no stock testimonial quotes. NiceJob can say "1.7M+ reviews enabled" because it's audited and real. A false version of that sentence is the single fastest way to lose a local owner's trust — this market runs on word of mouth, and a caught exaggeration travels exactly the way a good review does.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">07</span><br>Voice</div>
+    <div class="content">
+      <h2>Plain-spoken, not corporate — but not falsely casual either</h2>
+      <p class="lede">NiceJob's voice is upbeat and energetic (rocket emojis, "raving fanbase," "no brainer"). That fits a company with a marketing team and a mascot-level brand. Always Reviews' voice should be warm and direct — a founder talking to another owner, not a brand talking to a market.</p>
+
+      <div class="word-cols">
+        <div class="use">
+          <h4>Lean toward</h4>
+          <ul>
+            <li>automatically</li>
+            <li>every customer</li>
+            <li>the moment it happens</li>
+            <li>zero extra work</li>
+            <li>real business, running now</li>
+            <li>you stay in control</li>
+          </ul>
+        </div>
+        <div class="avoid">
+          <h4>Avoid</h4>
+          <ul>
+            <li>reputation marketing</li>
+            <li>on autopilot</li>
+            <li>raving fanbase</li>
+            <li>game-changing</li>
+            <li>AI-powered (as a headline claim)</li>
+            <li>enterprise / scale / platform</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Why "AI-powered" specifically gets avoided as a headline claim</h3>
+      <p>Gemini genuinely does the review-reply drafting — that's true and fine to mention as a supporting detail ("replies are written for the specific review, not a template"). But leading with "AI" answers a question the owner isn't asking yet ("what's the technology") before answering the one they are asking ("does this get me more reviews without me doing anything"). Mechanism after outcome, every time.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">08</span><br>Value-add</div>
+    <div class="content">
+      <h2>Reviews don't just sit on Google — they can live on the owner's own website too</h2>
+      <p class="lede">Once reviews are flowing in automatically, the natural next question from an owner is "can I show these off?" The answer is yes — via a third-party embeddable widget (e.g. Elfsight, Trustmary, EmbedSocial), not something Always Reviews builds itself. Positioned correctly, this becomes a second, tangible payoff on top of the ranking/volume pitch — real proof of quality, visible to every visitor, without lifting a finger.</p>
+
+      <h3>Why this belongs in the pitch, not the roadmap</h3>
+      <p>It costs nothing to offer today — the reviews already exist the moment The Watch (see section 05) starts capturing them, and setup is a five-minute embed for the business or their web person. Framing it as included guidance ("I'll help you get your reviews live on your own site too") turns a small extra ask into a visible, ownable win the business can point to immediately, well before a review count is big enough to be its own proof point (section 06).</p>
+
+      <h3>How to phrase it</h3>
+      <div class="dodont" style="margin-top:14px;">
+        <div class="box dont">
+          <p class="box-label">Overclaims the build</p>
+          <ul>
+            <li>"We'll build you a reviews widget"</li>
+            <li>"Always Reviews includes a website widget"</li>
+          </ul>
+        </div>
+        <div class="box do">
+          <p class="box-label">Accurate, still a win</p>
+          <ul>
+            <li>"Once the reviews are coming in, I'll help you get them showing live on your own website"</li>
+            <li>"Your Google reviews, right on your homepage — not just on Google"</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Where it fits the ladder</h3>
+      <p>The Ask gets the review. The Watch notices it. This is what happens after — the review keeps working for the business, on their own site, to every visitor, not just to people who happen to search Google first. Mention it as a natural "and one more thing" near the end of a pitch or WhatsApp conversation, after the core automation has landed — a bonus that reinforces the core promise, not a competing headline.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">09</span><br>CTA pattern</div>
+    <div class="content">
+      <h2>Two doors, like NiceJob — sized for founder-led sales</h2>
+      <p class="lede">NiceJob's dual CTA ("Start Free" / "Book a demo") works because both paths are self-serve. At this stage, there's no self-serve signup — every "yes" goes through Jonas. The dual-door idea still applies, just both doors lead to a conversation.</p>
+
+      <div class="compare">
+        <div class="source">
+          <span class="label">NiceJob</span>
+          <p>"Start Free" (no credit card) + "Book a demo" — low-friction self-serve vs. high-touch sales, both automated.</p>
+        </div>
+        <div class="adapt">
+          <span class="label">Always Reviews, now</span>
+          <p>"See it live" (show the real Print Express dashboard, no signup needed) + "Talk to me" (WhatsApp/call, per the outreach scripts already written) — both are the same door, sales, but framed as two different levels of commitment.</p>
+        </div>
+      </div>
+
+      <h3>Revisit once</h3>
+      <p>a second and third client are live — at 3-4 real clients, a genuine "Start Free" self-serve trial becomes credible and worth building, matching NiceJob's actual low-friction path instead of simulating it.</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>Always Reviews — internal messaging reference, derived from a teardown of get.nicejob.com</footer>
+</body>
+</html>
