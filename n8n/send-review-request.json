@@ -24,7 +24,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select c.id as customer_id, c.business_id, c.first_name, c.full_name, c.phone, c.email,\n       c.project_image_url,\n       b.business_name, b.review_request_link, b.whatsapp_sender_number,\n       coalesce(a.attempt_count, 0) as attempt_count,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.whatsapp_template_1\n         when 2 then b.whatsapp_template_2\n         when 3 then b.whatsapp_template_3\n         when 4 then b.whatsapp_template_4\n       end as whatsapp_template,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_subject_1\n         when 2 then b.email_subject_2\n         when 3 then b.email_subject_3\n         when 4 then b.email_subject_4\n       end as email_subject,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_intro_1\n         when 2 then b.email_intro_2\n         when 3 then b.email_intro_3\n         when 4 then b.email_intro_4\n       end as email_intro\nfrom customers c\njoin businesses b on b.id = c.business_id\nleft join (\n  select customer_id, count(*) as attempt_count, max(timestamp) as last_attempt_at\n  from activities\n  where activity_type = 'Request Sent'\n  group by customer_id\n) a on a.customer_id = c.id\nwhere c.opt_out = false\n  and c.do_not_call = false\n  and c.consent_optin = true\n  and not (c.source = 'system' and c.full_name = 'Unmatched Reviewer')\n  and b.status = 'Active'\n  and coalesce(a.attempt_count, 0) < 4\n  and not exists (\n    select 1 from activities r\n    where r.customer_id = c.id and r.review_received = true\n  )\n  and (\n    a.last_attempt_at is null\n    or a.last_attempt_at <= now() - (\n      case coalesce(a.attempt_count, 0)\n        when 1 then interval '5 days'\n        when 2 then interval '10 days'\n        when 3 then interval '20 days'\n      end\n    )\n  )",
+        "query": "select c.id as customer_id, c.business_id, c.first_name, c.full_name, c.phone, c.email,\n       c.project_image_url,\n       b.business_name, b.review_request_link, b.whatsapp_sender_number,\n       coalesce(a.attempt_count, 0) as attempt_count,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.whatsapp_template_1\n         when 2 then b.whatsapp_template_2\n         when 3 then b.whatsapp_template_3\n         when 4 then b.whatsapp_template_4\n       end as whatsapp_template,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.whatsapp_campaign_1\n         when 2 then b.whatsapp_campaign_2\n         when 3 then b.whatsapp_campaign_3\n         when 4 then b.whatsapp_campaign_4\n       end as whatsapp_campaign,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_subject_1\n         when 2 then b.email_subject_2\n         when 3 then b.email_subject_3\n         when 4 then b.email_subject_4\n       end as email_subject,\n       case coalesce(a.attempt_count, 0) + 1\n         when 1 then b.email_intro_1\n         when 2 then b.email_intro_2\n         when 3 then b.email_intro_3\n         when 4 then b.email_intro_4\n       end as email_intro\nfrom customers c\njoin businesses b on b.id = c.business_id\nleft join (\n  select customer_id, count(*) as attempt_count, max(timestamp) as last_attempt_at\n  from activities\n  where activity_type = 'Request Sent'\n  group by customer_id\n) a on a.customer_id = c.id\nwhere c.opt_out = false\n  and c.do_not_call = false\n  and c.consent_optin = true\n  and not (c.source = 'system' and c.full_name = 'Unmatched Reviewer')\n  and b.status = 'Active'\n  and coalesce(a.attempt_count, 0) < 4\n  and not exists (\n    select 1 from activities r\n    where r.customer_id = c.id and r.review_received = true\n  )\n  and (\n    a.last_attempt_at is null\n    or a.last_attempt_at <= now() - (\n      case coalesce(a.attempt_count, 0)\n        when 1 then interval '5 days'\n        when 2 then interval '10 days'\n        when 3 then interval '20 days'\n      end\n    )\n  )",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -78,6 +78,32 @@
     },
     {
       "parameters": {
+        "jsCode": "// Guards against sending a WhatsApp request with a template/campaign that\n// hasn't been set up yet for this attempt number. Pabbly's \"API Campaign\"\n// broadcast type requires BOTH a templateName and a campaignName per call\n// (confirmed against a real Pabbly curl example) -- each pre-created\n// campaign in Pabbly's dashboard has its own template attached, so attempts\n// 2-4 each need their own campaign created there before whatsapp_campaign_2..4\n// can be filled in (only \"review\", attempt 1, exists as of 2026-08-24).\n// Without these checks, a null value would be sent straight to Pabbly and\n// fail there instead of here, with a less useful error.\n// Also guards review_request_link, since Pabbly's \"link\" field would be sent\n// as null otherwise -- currently true for every business, none have a real link set yet.\nconst results = [];\nfor (const item of $input.all()) {\n  const attemptNumber = item.json.attempt_count + 1;\n  if (!item.json.whatsapp_template) {\n    throw new Error(\n      `No whatsapp_template_${attemptNumber} set for business \"${item.json.business_name}\" ` +\n      `(customer_id: ${item.json.customer_id}) — write and Meta-approve this template before attempt ${attemptNumber} can send.`\n    );\n  }\n  if (!item.json.whatsapp_campaign) {\n    throw new Error(\n      `No whatsapp_campaign_${attemptNumber} set for business \"${item.json.business_name}\" ` +\n      `(customer_id: ${item.json.customer_id}) — create a Pabbly campaign for attempt ${attemptNumber} and set this column to its Campaign Name.`\n    );\n  }\n  if (!item.json.review_request_link) {\n    throw new Error(\n      `No review_request_link set for business \"${item.json.business_name}\" ` +\n      `(customer_id: ${item.json.customer_id}) — set the business's Google review URL before sending.`\n    );\n  }\n  results.push(item);\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -216,
+        32
+      ],
+      "id": "code-validate-whatsapp-template",
+      "name": "Validate WhatsApp Template"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guards against sending an email with a missing subject/intro for this\n// attempt number, so a null value fails here with a clear message instead\n// of either erroring inside Gmail's node or (worse) silently sending an\n// email with \"undefined\" text in the subject/body.\n// Also guards review_request_link, since the email's \"Leave a Review\" button\n// would otherwise render as href=\"\" -- currently true for every business,\n// none have a real link set yet.\nconst results = [];\nfor (const item of $input.all()) {\n  const attemptNumber = item.json.attempt_count + 1;\n  if (!item.json.email_subject || !item.json.email_intro) {\n    throw new Error(\n      `Missing email_subject_${attemptNumber}/email_intro_${attemptNumber} for business \"${item.json.business_name}\" ` +\n      `(customer_id: ${item.json.customer_id}) — set both before attempt ${attemptNumber} can send.`\n    );\n  }\n  if (!item.json.review_request_link) {\n    throw new Error(\n      `No review_request_link set for business \"${item.json.business_name}\" ` +\n      `(customer_id: ${item.json.customer_id}) — set the business's Google review URL before sending.`\n    );\n  }\n  results.push(item);\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -216,
+        -160
+      ],
+      "id": "code-validate-email-content",
+      "name": "Validate Email Content"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://chatflow.pabbly.com/api/v1/broadcasts/send",
         "authentication": "genericCredentialType",
@@ -88,7 +114,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  templateName: $json.whatsapp_template,\n  campaignName: \"request_review\",\n  destination: $json.phone,\n  userName: $json.first_name,\n  headerParams: [],\n  bodyParams: [$json.first_name, $json.business_name],\n  source: \"api\",\n  link: $json.project_image_url\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  templateName: $json.whatsapp_template,\n  campaignName: $json.whatsapp_campaign,\n  destination: $json.phone,\n  userName: $json.first_name,\n  headerParams: [],\n  bodyParams: [$json.first_name, $json.business_name],\n  source: \"api\",\n  link: $json.project_image_url\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -109,7 +135,7 @@
     {
       "parameters": {
         "sendTo": "={{ $json.email }}",
-        "subject": "={{ $json.email_subject.replace('{{business_name}}', $json.business_name).replace('{{first_name}}', $json.first_name) }}",
+        "subject": "={{ $json.email_subject.replace('{business_name}', $json.business_name).replace('{first_name}', $json.first_name) }}",
         "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;\">\n  <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin: 0 auto 20px auto;\">\n    <tr>\n      <td width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; border-radius: 8px; overflow: hidden;\">\n        <img src=\"{{ $json.project_image_url || 'https://images.pexels.com/photos/38135743/pexels-photo-38135743.jpeg' }}\" alt=\"Your project\" width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; object-fit: cover; display: block; border-radius: 8px;\" />\n      </td>\n    </tr>\n  </table>\n\n  <p>Hi {{ $json.first_name }},</p>\n\n  <p>{{ $json.email_intro }}</p>\n\n  <p>Could you leave us a quick Google review?</p>\n\n  <p style=\"text-align: left; margin: 30px 0;\">\n    <a href=\"{{ $json.review_request_link }}\"\n       style=\"background-color: #f9ab00; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;\">\n      Leave a Review\n    </a>\n  </p>\n\n  <p>It only takes a minute.</p>\n\n  <p>Thank you!</p>\n\n  <p>— {{ $json.business_name }}</p>\n</div>\n",
         "options": {}
       },
@@ -134,7 +160,7 @@
         "operation": "executeQuery",
         "query": "insert into activities (\n  business_id, customer_id, activity_type, activity_status, channel,\n  template_name, personalized_image_url, attempts, notes\n) values (\n  $1, $2, 'Request Sent', 'Sent', 'WhatsApp', $3, $4, $5, $6\n)\nreturning id;",
         "options": {
-          "queryReplacement": "={{ [$json.business_id, $json.customer_id, $json.whatsapp_template, $json.project_image_url, $json.attempt_count + 1, \"Sent via n8n WhatsApp (Pabbly Chatflow) workflow — attempt \" + ($json.attempt_count + 1)] }}"
+          "queryReplacement": "={{ [$json.business_id, $json.customer_id, $json.whatsapp_template, $json.project_image_url, $json.attempt_count + 1, \"Sent via n8n WhatsApp (Pabbly Chatflow) workflow — attempt \" + ($json.attempt_count + 1) + \", campaign: \" + $json.whatsapp_campaign] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
@@ -204,14 +230,36 @@
       "main": [
         [
           {
-            "node": "Send a message",
+            "node": "Validate Email Content",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
+            "node": "Validate WhatsApp Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate WhatsApp Template": {
+      "main": [
+        [
+          {
             "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Email Content": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
             "type": "main",
             "index": 0
           }
