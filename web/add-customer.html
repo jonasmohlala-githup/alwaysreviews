@@ -86,6 +86,7 @@
   }
 
   let currentSession = null;
+  let currentBusinessId = null;
 
   async function requireAuth() {
     currentSession = await getSession();
@@ -94,6 +95,12 @@
       return;
     }
     whoamiText.textContent = "Signed in as " + currentSession.user.email;
+
+    try {
+      ({ businessId: currentBusinessId } = await resolveBusinessContext(currentSession.user.id));
+    } catch (err) {
+      showMsg(formMsg, err.message, "error");
+    }
   }
 
   document.getElementById("signOutBtn").addEventListener("click", async () => {
@@ -111,7 +118,8 @@
 
     try {
       if (!currentSession) throw new Error("You are not signed in.");
-      const businessId = await getCurrentBusinessId(currentSession.user.id);
+      if (!currentBusinessId) throw new Error("No business selected.");
+      const businessId = currentBusinessId;
 
       const photoInput = document.getElementById("photo");
       let photoPayload = {};

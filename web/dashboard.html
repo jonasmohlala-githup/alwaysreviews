@@ -110,7 +110,7 @@
 
     let businessId;
     try {
-      businessId = await getCurrentBusinessId(session.user.id);
+      ({ businessId } = await resolveBusinessContext(session.user.id));
     } catch (err) {
       document.getElementById("loadingState").textContent = err.message;
       return;

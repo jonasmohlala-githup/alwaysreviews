@@ -9,6 +9,10 @@ Moving a 3-sheet Google Sheets design (Business / Customer / Activity) into Supa
 Supabase project ref: `xbmoomufmxicwymwbovg`
 Dashboard: https://supabase.com/dashboard/project/xbmoomufmxicwymwbovg
 
+## Standing convention: testing web pages
+
+**Whenever asked to test a webpage in this project, use the Playwright CLI** (`npx playwright`), not manual/visual-only checking. No MCP Playwright tool is available in this environment — install ad-hoc in the scratchpad dir if needed (`npm install playwright && npx playwright install chromium`), write a small Node script driving `chromium.launch()`, and capture console/pageerror/requestfailed events plus a screenshot. This was the method used to verify the admin business-switcher (2026-08-23 session) — see that section below for the working pattern, including how to test Supabase magic-link auth flows (send a fresh link, get it pasted immediately, follow it right away with Playwright before it expires — links are single-use and expire in roughly a minute or two).
+
 ## Original Google Sheets design (starting point)
 
 Three sheets, relational, linked by IDs:
@@ -463,6 +467,53 @@ Had to use the **Session pooler** (not direct connection) due to an IPv6 `ENETUN
 - Database: `postgres`
 - User: `postgres.xbmoomufmxicwymwbovg` (note the dotted project-ref suffix — required for pooler auth, plain `postgres` fails against the pooler host)
 - Password: the project's database password (was pasted in chat once during troubleshooting — same rotation caveat as above applies if this becomes a production concern)
+
+## Marketing & GTM (2026-08-22 session)
+
+Two reference-quality documents built as Claude Artifacts (not committed to this repo — they're strategy/copy references, not app code). Both use a matched warm-paper/gold design system (Fraunces + Source Sans 3 + IBM Plex Mono).
+
+### Go-to-market strategy
+Published: https://claude.ai/code/artifact/fec5dd1a-bfad-47f6-90d3-e35af9b4319b — also saved to the repo as `marketing/always-reviews-gtm-strategy.html` (standalone file, shows in IDE explorer).
+
+**Decisions made** (via explicit user choice, not assumed):
+- **Target segment**: local service businesses (trades, salons, auto shops, print/copy shops) — not agencies-as-resellers, not broad SMB.
+- **Motion**: founder-led outbound (in-person/phone/WhatsApp, warm intros) — not content/inbound or paid.
+- **Launch gating**: outreach and list-building start immediately; onboarding a real paying client waits on three items — Resend domain verification for `alwaysreviews.com`, re-testing all 3 n8n workflows (see "Next steps" below), and rotating the 4 exposed credentials.
+- **Pricing (untested, starting offer)**: founding cohort R450/mo for first 5 businesses (12-month lock-in for testimonial+referral), standard R750/mo after, setup fee waived for founding cohort. Flat pricing was a deliberate choice over Review Harvest's volume-tiered model (see below) — easier to say out loud in a first conversation; revisit once usage is tracked at scale.
+- **Sales approach**: lead with Print Express's live dashboard as proof, not a deck.
+- Includes a target-segment table (print shops → auto repair → salons → home services → clinics, in priority order), opening scripts, and objection-handling scripts (including one on bad-review handling, added after the messaging-framework revision below).
+
+### Messaging & positioning framework
+Published: https://claude.ai/code/artifact/1bbbc29d-007f-482b-842c-a8628c3028ec — also saved to the repo as `marketing/always-reviews-messaging-framework.html`.
+
+Built from structural teardowns of two competitor landing pages, done via `WebFetch`:
+- **NiceJob** (`get.nicejob.com`) — the broad-SMB category leader. Headline: "Easily get more reviews. Outrank local competition. Win more sales." Proof is aggregate/scale-based (50,000+ businesses, 1.7M+ reviews) — explicitly flagged as **not** to imitate at this stage (one real client, not fifty thousand).
+- **Review Harvest** (`reviewharvest.com`) — the actual namesake this project was originally named after, pre-rebrand (see "Deployment & rebrand" section above: "Review Harvest" → "Always Reviews"). Closer analog: same home-services niche, same solo-owner buyer. Headline: "Review Automation for Home Service Businesses." Leads with problem, not promise ("No Reviews," "No Time," "No Visibility On Google") — validated the decision to flip the WhatsApp outreach scripts to problem-first framing (see below). Real pricing model: $99/$179/$279 tiered by request volume — compared against, but not adopted over, the flat pricing above.
+
+**Framework contents**: a core one-sentence positioning statement ("Always Reviews is the review system for local businesses too busy to run one..."), five headline options (one explicitly gated on Print Express having a real before/after number — don't publish with a placeholder), a feature→benefit translation table for the three real n8n workflows ("The Ask" / "The Watch" / "The Reply" / "The Proof"), a voice word list (lean toward vs. avoid), and a CTA pattern section.
+
+**Notable correction made mid-session**: the "Reply" feature and the "is this spam" objection script originally described low-star review handling as an absence ("we don't auto-reply to negative reviews," "nothing embarrassing goes out on autopilot") — user caught that this reads as neglect. Reframed everywhere as a positive hand-off instead: a bad review triggers an immediate notification so the *owner* can respond personally, which is what actually shows customers the business cares, more than any automated reply could. This is now documented as a standing rule in the messaging framework (section 05, "Never phrase the low-star handoff as an absence") with a do/don't table, specifically so future copy doesn't have to re-derive it. Also fixed in the GTM strategy's objection scripts (new "What happens if someone leaves a bad review?" entry) and in the ad-hoc WhatsApp outreach template drafts from earlier in the same session (not saved to a file — chat-only).
+
+### Outreach scripts
+Published: https://claude.ai/code/artifact/5eb89b6a-cca0-4f34-9c5d-e6e92cc44d42 — also saved to the repo as `marketing/always-reviews-outreach-scripts.html`.
+
+**2026-08-23 session**: the six WhatsApp first-touch templates drafted 2026-08-22 (chat-only, not saved) were rebuilt into a proper reference doc, matching the same warm-paper/gold design system as the other two marketing docs. Six drafts — warm & casual / professional & concise, each in short / medium / with-proof lengths — all problem-first framed (diagnostic question about whether review-asking happens today, not a product pitch up front), consistent with the messaging framework's voice rules (no "reputation marketing," no "on autopilot") and the GTM doc's opening script. Adds two things beyond the original chat drafts: a **follow-up cadence for the outreach itself** (day 4-5 bump, day 12-14 final check-in, then stop — deliberately mirroring the product's own 5/10/20-day customer follow-up promise) and a **segment→tone mapping table** (print shops get the Print-Express-named "with proof" version; clinics get "professional, with proof" with consent language moved earlier, per the GTM doc's compliance note on that segment).
+
+## Admin role + business switcher (2026-08-23 session)
+
+**Why**: the demo/pitch use case needs to show activity for businesses other than Print Express from one login, but the app had no concept of "admin" — every user resolved to exactly one business via `getCurrentBusinessId()`, which just took the first (and only) `business_members` row.
+
+**Approach taken**: no new table — `business_members` was already many-to-many capable and its RLS policies already use `business_id in (select ... where user_id = auth.uid())`, which unions across however many membership rows a user has. So an admin just needed multiple `business_members` rows (one per business, `role = 'admin'`) and RLS required zero changes.
+
+- **Migration**: `supabase/migrations/20260823000000_admin_role.sql` — widens the `business_members.role` check constraint to allow `'admin'` (was `owner`/`staff` only), and links `jonas.mohlala@gmail.com` to every existing business as `admin` (upgraded the existing `owner` row on Print Express rather than duplicating, via `on conflict (business_id, user_id) do update set role = 'admin'`). Pushed live via `supabase db push --linked`; verified with a query joining `business_members`/`businesses`/`auth.users`.
+- **`web/shared.js`**: replaced `getCurrentBusinessId()` with `getMemberships(userId)` (returns every membership + business name, via PostgREST embed `business_members.select("business_id, role, businesses(business_name)")`) and `resolveBusinessContext(userId)`. Non-admins resolve exactly as before (their one row, no UI change). Admins get the first business by default, remembered per-tab in `sessionStorage` (`alwaysreviews_selected_business_id`), and `resolveBusinessContext` renders a `<select>` switcher into the topbar's `.whoami` block via a new `renderBusinessSwitcher()` helper — changing it re-stores the selection and reloads the page.
+- **Filtering approach — deliberately client-side, not a server-enforced RPC**: queries keep using `.eq("business_id", selectedId)` as before; RLS still allows an admin to read any business they're linked to, and the dropdown selection just narrows which one the UI asks for. Chosen over adding a Postgres RPC for this — simpler, and the trust boundary (RLS/`business_members`) is unchanged either way.
+- **Pages updated**: `dashboard.html`, `customers.html`, `settings.html` now call `resolveBusinessContext()` where they used to call `getCurrentBusinessId()`. `add-customer.html` resolves it once in `requireAuth()` (was previously resolved lazily at submit time) and caches it in `currentBusinessId` for the submit handler, so the switcher renders on page load rather than only after starting a submission.
+- **`web/styles.css`**: added `.biz-switcher` (small bordered select, matches the existing topbar/whoami look).
+- **Dropdown visibility**: shows whenever the logged-in user has *any* `business_members` row with `role = 'admin'` — not gated on having 2+ businesses, so it'll appear automatically the moment a second business is linked to the admin account, with no further code changes.
+- **Demo data seeded, verified, then removed (2026-08-23)**: `supabase/migrations/20260823010000_demo_businesses.sql` seeded two fake businesses (Kimberley Auto Care, Bright Smile Dental) with demo customers/activities and linked the admin account to both. Verified end-to-end with Playwright (see below) — switcher rendered all 3 businesses, switching correctly scoped the dashboard's heading/stats/table to the selected business, no console errors. Once confirmed working, removed via `supabase/migrations/20260823020000_remove_demo_businesses.sql` (deletes the two demo `businesses` rows; cascade removes their customers/activities/placeholder/business_members rows). Only Print Express remains as of this session — the switcher dropdown won't render again until a second real business is linked to the admin account.
+- **Deployment reminder discovered this session**: local changes to `web/` are NOT live until manually deployed (`vercel deploy --cwd web --yes --prod` — GitHub auto-deploy still isn't connected, see "Next steps" #4). The admin/switcher code was built and tested locally first, but didn't appear on `https://alwaysreviews.vercel.app` until this deploy step was run — worth remembering for any future web/ change.
+- **Verification method**: since Supabase magic links are single-use and short-lived (expire in roughly a minute or two), testing required sending a fresh link, having the user paste it immediately, and following it right away with Playwright (`npx playwright`, installed ad-hoc in the scratchpad dir, not added to this repo) — a stale/reused link fails with `otp_expired`. This is a reasonable pattern to repeat for any future auth-gated UI verification, without needing the service-role key (fetching it was correctly blocked by the auto-mode safety classifier when attempted).
 
 ## Next steps (pick up here)
 
