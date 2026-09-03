@@ -45,11 +45,6 @@
       <label for="jobDate">Job completion date</label>
       <input type="date" id="jobDate" />
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="consent" />
-        <label for="consent">This customer has agreed to be contacted about leaving a review</label>
-      </div>
-
       <label for="photo">Project photo (optional)</label>
       <input type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp,image/heic" />
 
@@ -91,7 +86,7 @@
   async function requireAuth() {
     currentSession = await getSession();
     if (!currentSession) {
-      window.location.href = "index.html";
+      window.location.href = "login.html";
       return;
     }
     whoamiText.textContent = "Signed in as " + currentSession.user.email;
@@ -147,7 +142,7 @@
           email: document.getElementById("email").value.trim() || null,
           service_type: document.getElementById("serviceType").value.trim() || null,
           job_completion_date: jobDateValue || null,
-          consent_optin: document.getElementById("consent").checked,
+          consent_optin: true,
           ...photoPayload
         })
       });
@@ -165,10 +160,6 @@
       submitBtn.disabled = false;
       submitBtn.textContent = "Add customer";
     }
-  });
-
-  sb.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_OUT") window.location.href = "index.html";
   });
 
   requireAuth();

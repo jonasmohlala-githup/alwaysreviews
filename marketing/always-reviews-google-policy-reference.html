@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Google Review Policy Reference</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #FAF8F4;
+    --surface: #FFFFFF;
+    --ink: #1F1B16;
+    --muted: #6B6255;
+    --faint: #9A9184;
+    --accent: #B8862E;
+    --accent-ink: #7A5A1E;
+    --accent-soft: #F3E8D2;
+    --line: #E4DFD5;
+    --line-strong: #D3CBBC;
+    --good: #4B7A51;
+    --good-soft: #E7EFE3;
+    --warn: #A85A2E;
+    --warn-soft: #F3E3D2;
+    --bad: #B8453A;
+    --bad-soft: #F5E2DF;
+    --shadow: 0 1px 2px rgba(31,27,22,0.04), 0 4px 16px rgba(31,27,22,0.03);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140F;
+      --surface: #1E1A14;
+      --ink: #F1ECE2;
+      --muted: #B3A991;
+      --faint: #7E7563;
+      --accent: #D9A94A;
+      --accent-ink: #E8C179;
+      --accent-soft: #322813;
+      --line: #342E23;
+      --line-strong: #443C2C;
+      --good: #7FAE7F;
+      --good-soft: #21281F;
+      --warn: #D08A5C;
+      --warn-soft: #2E2318;
+      --bad: #E0837A;
+      --bad-soft: #2E1E1B;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.25);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #17140F;
+    --surface: #1E1A14;
+    --ink: #F1ECE2;
+    --muted: #B3A991;
+    --faint: #7E7563;
+    --accent: #D9A94A;
+    --accent-ink: #E8C179;
+    --accent-soft: #322813;
+    --line: #342E23;
+    --line-strong: #443C2C;
+    --good: #7FAE7F;
+    --good-soft: #21281F;
+    --warn: #D08A5C;
+    --warn-soft: #2E2318;
+    --bad: #E0837A;
+    --bad-soft: #2E1E1B;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.25);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Source Sans 3', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 16.5px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 24px 120px;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--accent-ink); }
+
+  a { color: var(--accent-ink); text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+  a:hover { text-decoration-color: var(--accent); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .page { max-width: 840px; margin: 0 auto; }
+
+  /* ---------- Masthead ---------- */
+  .masthead { padding: 64px 0 40px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(2.1rem, 4.2vw, 2.9rem);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .dek { font-size: 1.08rem; color: var(--muted); max-width: 640px; margin: 0; text-wrap: pretty; }
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-top: 28px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    color: var(--faint);
+  }
+  .meta-row strong { color: var(--muted); font-weight: 500; }
+
+  /* ---------- Source notice ---------- */
+  .source-note {
+    margin-top: 24px;
+    padding: 12px 16px;
+    background: var(--accent-soft);
+    border-radius: 8px;
+    font-size: 0.87rem;
+    color: var(--accent-ink);
+  }
+  .source-note a { color: var(--accent-ink); font-weight: 600; }
+
+  /* ---------- Section scaffold ---------- */
+  section.block {
+    padding: 48px 0;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    grid-template-columns: 148px minmax(0, 1fr);
+    gap: 32px;
+  }
+  section.block:last-of-type { border-bottom: none; }
+
+  .rail {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-top: 4px;
+  }
+  .rail .n { color: var(--accent-ink); font-weight: 500; }
+
+  .content h2 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 500;
+    font-size: 1.55rem;
+    margin: 0 0 8px;
+    letter-spacing: -0.005em;
+  }
+  .content .lede { color: var(--muted); margin: 0 0 26px; max-width: 62ch; }
+  .content p { max-width: 68ch; }
+  .content h3 {
+    font-family: 'Source Sans 3', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    margin: 30px 0 12px;
+  }
+  .content h3:first-child { margin-top: 0; }
+
+  /* ---------- Rule / hard-line callout ---------- */
+  .hardline {
+    background: var(--bad-soft);
+    border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 4px 0 24px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .hardline .mark {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--bad);
+    white-space: nowrap;
+    padding-top: 3px;
+  }
+  .hardline p { margin: 0; font-size: 0.96rem; }
+  .hardline strong { color: var(--bad); }
+
+  /* ---------- Do / Don't table ---------- */
+  .dodont {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 10px 0 8px;
+  }
+  .dodont-col { background: var(--surface); padding: 16px 18px; }
+  .dodont-head {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 500;
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .dodont-col.do .dodont-head { color: var(--good); }
+  .dodont-col.dont .dodont-head { color: var(--bad); }
+  .dodont-head::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .dodont-col ul { margin: 0; padding: 0 0 0 18px; }
+  .dodont-col li { margin-bottom: 8px; font-size: 0.92rem; }
+  .dodont-col li:last-child { margin-bottom: 0; }
+
+  /* ---------- Checklist ---------- */
+  ul.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  ul.checks li { display: flex; gap: 10px; align-items: flex-start; font-size: 0.96rem; }
+  ul.checks li::before {
+    content: '';
+    width: 14px; height: 14px;
+    margin-top: 3px;
+    flex: none;
+    border-radius: 3px;
+    border: 1.5px solid var(--line-strong);
+    background: var(--surface);
+  }
+  ul.checks li.done::before { background: var(--good); border-color: var(--good); }
+
+  /* ---------- Mapping table (Google rule -> Always Reviews behavior) ---------- */
+  .table-wrap { overflow-x: auto; margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; min-width: 560px; }
+  th {
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--faint);
+    font-weight: 500;
+    padding: 0 14px 10px 0;
+    border-bottom: 1px solid var(--line-strong);
+  }
+  td { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+  td.muted { color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 3px 9px 3px 7px;
+    border-radius: 100px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .status-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .status-pill.aligned { background: var(--good-soft); color: var(--good); }
+  .status-pill.watch { background: var(--warn-soft); color: var(--warn); }
+
+  /* ---------- Reply skeleton card ---------- */
+  .script {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-top: 14px;
+    box-shadow: var(--shadow);
+  }
+  .script-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-ink);
+    margin: 0 0 8px;
+  }
+  .script p { margin: 0; font-size: 0.96rem; }
+  .script p + p { margin-top: 10px; }
+
+  /* ---------- Timeline (reply moderation) ---------- */
+  .flow { display: flex; flex-direction: column; gap: 0; margin-top: 8px; }
+  .flow-step {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 20px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+  }
+  .flow-step:first-child { border-top: none; padding-top: 0; }
+  .flow-when { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--faint); padding-top: 2px; }
+  .flow-title { font-weight: 600; margin: 0 0 4px; }
+  .flow-body { color: var(--muted); margin: 0; font-size: 0.94rem; }
+
+  footer {
+    max-width: 840px;
+    margin: 0 auto;
+    padding-top: 40px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--faint);
+  }
+  footer a { color: var(--faint); }
+
+  @media (max-width: 640px) {
+    section.block { grid-template-columns: 1fr; gap: 8px; }
+    .rail { display: flex; align-items: center; gap: 8px; }
+    .dodont { grid-template-columns: 1fr; }
+    .flow-step { grid-template-columns: 1fr; gap: 4px; }
+    .flow-when { padding-top: 0; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    section.block, .masthead { animation: rise 0.5s ease-out both; }
+    section.block:nth-of-type(2) { animation-delay: 0.03s; }
+    section.block:nth-of-type(3) { animation-delay: 0.06s; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="masthead">
+    <div class="eyebrow"><span class="dot"></span>Policy reference</div>
+    <h1>Google's rules for reviews, and where Always Reviews stands against them</h1>
+    <p class="dek">A working reference for anyone writing outreach copy, review replies, or product features for Always Reviews — sourced from Google's own Business Profile help pages, with each rule checked against what the product actually does today.</p>
+    <div class="meta-row">
+      <span><strong>Compiled</strong> 31 Aug 2026</span>
+      <span><strong>Source</strong> support.google.com/business</span>
+      <span><strong>Applies to</strong> outreach copy, AI reply generation, product roadmap</span>
+    </div>
+    <div class="source-note">
+      Primary source: <a href="https://support.google.com/business/answer/3474122" target="_blank" rel="noopener">Tips to get more Google reviews</a>, plus Google's linked guidance on managing and replying to reviews. Re-check this page if Google updates its policy — content here reflects what was published as of the compile date above.
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="rail"><span class="n">01</span><br>The one hard line</div>
+    <div class="content">
+      <h2>No incentives, ever — for a review, a changed review, or a removed one</h2>
+      <p class="lede">Everything else on this page is a best practice. This one is a policy violation, full stop, and the one rule this doc exists to make impossible to miss.</p>
+
+      <div class="hardline">
+        <span class="mark">Google's wording</span>
+        <p>"Offering incentives, like free of cost or discounted goods or services, in exchange for customers to post reviews, change reviews or remove negative reviews is considered <strong>fake engagement</strong> and is strictly prohibited."</p>
+      </div>
+
+      <p>This covers more than it sounds like — not just "leave a review, get 10% off," but also asking a customer to change an existing review, or offering anything to make a negative one disappear. A business found doing this risks profile-level restrictions from Google, independent of anything Always Reviews does.</p>
+
+      <h3>Where this touches the product</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Surface</th><th>Current state</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>WhatsApp/email request templates (attempts 1–4)</td>
+              <td class="muted">Ask for a review directly, no offer attached — confirmed against current copy</td>
+              <td><span class="status-pill aligned">Aligned</span></td>
+            </tr>
+            <tr>
+              <td>Outreach scripts to prospective <em>businesses</em></td>
+              <td class="muted">Pitch is about automating the ask, not about incentivizing end customers</td>
+              <td><span class="status-pill aligned">Aligned</span></td>
+            </tr>
+            <tr>
+              <td>Any future "discount for a review" feature idea</td>
+              <td class="muted">Not built, but worth flagging now — this is the one idea to never ship</td>
+              <td><span class="status-pill watch">Watch</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">02</span><br>Getting reviews</div>
+    <div class="content">
+      <h2>What Google actually recommends</h2>
+      <p class="lede">Three practices, all of which the product already automates or supports — this is the part of Google's guidance Always Reviews exists to execute well.</p>
+
+      <ul class="checks">
+        <li class="done"><strong>Remind customers via a link or QR code</strong> — Always Reviews sends the review link automatically over WhatsApp and email after every completed job, on a 5/10/20-day follow-up schedule if there's no response.</li>
+        <li class="done"><strong>Reply to reviews</strong> — 4–5★ reviews get a genuine AI-drafted reply (via <code>inbound-gbp-review-capture.json</code>); lower-star reviews route to the business owner instead of an auto-reply, by design (see section 04).</li>
+        <li class="done"><strong>Value the mix, not just the positives</strong> — the product has no mechanism to suppress or filter which customers get asked; every completed job in the eligible-customer query gets a request, positive or negative outcome unknown in advance.</li>
+      </ul>
+
+      <p style="margin-top: 22px;">One detail worth keeping in outreach conversations: a customer needs a Google Account to leave a review, but it doesn't need to be a Gmail address — worth mentioning if a prospective client worries their customers "don't use Google."</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">03</span><br>Writing replies</div>
+    <div class="content">
+      <h2>Google's own style guide for review replies</h2>
+      <p class="lede">This is effectively a brief for the AI reply prompt in <code>inbound-gbp-review-capture.json</code> — short, genuine, not promotional, signed by a name.</p>
+
+      <div class="dodont">
+        <div class="dodont-col do">
+          <p class="dodont-head">Do</p>
+          <ul>
+            <li>Keep it short — a couple of sentences beats a paragraph</li>
+            <li>Reference something specific from the actual review</li>
+            <li>Sign with a name or initials, so it reads as a real person</li>
+            <li>Only reply when there's something genuine to say</li>
+          </ul>
+        </div>
+        <div class="dodont-col dont">
+          <p class="dodont-head">Don't</p>
+          <ul>
+            <li>Offer a deal or promotion — they're already a customer</li>
+            <li>Thank every single reviewer publicly out of habit</li>
+            <li>Write anything that reads as a template with names swapped</li>
+            <li>Let a reply sit unposted long enough to look ignored</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>Worth knowing before it surprises anyone</h3>
+      <p>Google reviews every reply before it posts publicly — usually within 10 minutes, but Google states it can take up to 30 days. A reply that's rejected has to be edited and resubmitted. This matters for expectation-setting with a client: "the AI replied instantly" isn't quite accurate — <code>Post Reply to GBP</code> submits instantly, but the visible posting is on Google's own review timeline, not Always Reviews'.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">04</span><br>Negative reviews</div>
+    <div class="content">
+      <h2>The gap between Google's advice and what most tools do</h2>
+      <p class="lede">This is the section that validates a decision already made in this project — see the messaging framework's "never phrase the low-star handoff as an absence" rule. Google's own guidance backs it up directly.</p>
+
+      <div class="hardline" style="background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 35%, transparent);">
+        <span class="mark" style="color: var(--warn);">Reframe</span>
+        <p>Google explicitly recommends a real reply, from a real person, offering to resolve things offline — not silence, and not a generic auto-reply. Always Reviews' current design (route low-star reviews to the owner instead of auto-replying) is the more Google-aligned choice, not the more cautious one.</p>
+      </div>
+
+      <h3>Google's five steps for a negative-review reply</h3>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-when">Step 1</div>
+          <div>
+            <p class="flow-title">Check your own records first</p>
+            <p class="flow-body">Look up what actually happened with that customer before writing anything — don't reply blind.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-when">Step 2</div>
+          <div>
+            <p class="flow-title">Be honest about what's yours to own</p>
+            <p class="flow-body">Admit real mistakes plainly. Explain what was outside your control — Google's own example is a weather-related cancellation — without sounding like an excuse.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-when">Step 3</div>
+          <div>
+            <p class="flow-title">Apologise with actual empathy</p>
+            <p class="flow-body">Show you understand how the situation felt from their side, not just a scripted "we're sorry for the inconvenience."</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-when">Step 4</div>
+          <div>
+            <p class="flow-title">Sign it as a person</p>
+            <p class="flow-body">A name or initials — this is what makes a reply feel authentic rather than corporate.</p>
+          </div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-when">Step 5</div>
+          <div>
+            <p class="flow-title">Move it offline</p>
+            <p class="flow-body">Invite them to continue by phone or email. Never share their private info or attack them personally, in the reply or anywhere else.</p>
+          </div>
+        </div>
+      </div>
+
+      <h3>Why this stays a human step, not an automated one</h3>
+      <p>Steps 1 and 2 need real business context an AI reply generator doesn't have access to — what actually happened, and what was genuinely outside the business's control. That's the underlying reason 1–3★ reviews are flagged for the owner rather than auto-replied to; it's not caution for its own sake, it's that a good reply here structurally requires a human who was there.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">05</span><br>Mechanics worth knowing</div>
+    <div class="content">
+      <h2>Details that explain "why is this taking so long" questions</h2>
+      <p class="lede">Small facts about how Google's review system actually works — useful for setting expectations with a client, or for debugging when something looks broken but isn't.</p>
+
+      <ul class="checks">
+        <li>A reply can take up to 30 days to appear publicly, even though it's usually much faster — don't treat a same-day "missing" reply as a bug before checking this.</li>
+        <li>The reviewer is notified when a business replies, and can edit their review afterward — a genuine, specific reply has a real chance to turn a review around, which is part of why a templated one-liner undersells the opportunity.</li>
+        <li>A business must be verified on Google before it can reply to reviews at all — worth checking early in onboarding a new client, before assuming the reply workflow will work end-to-end.</li>
+        <li>Review availability varies by country/region and business category, and can change over time — not every prospective client is guaranteed to have reviews enabled the same way Print Express does.</li>
+        <li>Reviews for service businesses can include the specific service selected by the customer, shown alongside their written review — a detail that could eventually inform which service_type values are worth capturing more precisely at intake.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail"><span class="n">06</span><br>If a review is fake or abusive</div>
+    <div class="content">
+      <h2>Flagging, not fighting, is the sanctioned path</h2>
+      <p class="lede">A business can't remove a review it disagrees with — replying with facts is the only direct lever. But a review that actually violates Google's content policies (harassment, spam, conflict of interest, off-topic content) can be reported for Google to review.</p>
+      <p>Worth adding to any future client-facing FAQ or onboarding material: this is a real, sanctioned escape hatch for the rare genuinely abusive or fake review — distinct from "I don't like what this says about my business," which isn't grounds for removal.</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>Always Reviews — internal reference, compiled from Google's public Business Profile help documentation</footer>
+
+</body>
+</html>

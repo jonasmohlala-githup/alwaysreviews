@@ -24,7 +24,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "select id as business_id, business_name, gbp_account_id, location_id\nfrom businesses\nwhere status = 'Active'\n  and gbp_account_id is not null\n  and location_id is not null;",
+        "query": "select id as business_id, business_name, gbp_account_id, location_id, gbp_verified\nfrom businesses\nwhere status = 'Active'\n  and gbp_account_id is not null\n  and location_id is not null;",
         "options": {}
       },
       "id": "b1b1b1b1-0002-4000-8000-000000000002",
@@ -122,7 +122,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const businessRow = $('Get Active Businesses with GBP').item.json;\nconst response = items[0].json;\nconst reviews = response.reviews || [];\n\nreturn reviews.map(r => {\n  const starMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };\n  return {\n    json: {\n      business_id: businessRow.business_id,\n      business_name: businessRow.business_name,\n      gbp_account_id: businessRow.gbp_account_id,\n      location_id: businessRow.location_id,\n      review_id: r.reviewId,\n      reviewer_name: r.reviewer?.displayName || '',\n      star_rating: r.starRating,\n      star_number: starMap[r.starRating] || null,\n      review_comment: r.comment || '',\n      review_link: r.name ? `https://business.google.com/reviews/l/${businessRow.location_id || ''}` : null,\n      create_time: r.createTime,\n      has_existing_google_reply: !!r.reviewReply,\n      existing_google_reply_comment: r.reviewReply?.comment || null\n    }\n  };\n});"
+        "jsCode": "const businessRow = $('Get Active Businesses with GBP').item.json;\nconst response = items[0].json;\nconst reviews = response.reviews || [];\n\nreturn reviews.map(r => {\n  const starMap = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };\n  return {\n    json: {\n      business_id: businessRow.business_id,\n      business_name: businessRow.business_name,\n      gbp_account_id: businessRow.gbp_account_id,\n      location_id: businessRow.location_id,\n      gbp_verified: businessRow.gbp_verified === true,\n      review_id: r.reviewId,\n      reviewer_name: r.reviewer?.displayName || '',\n      star_rating: r.starRating,\n      star_number: starMap[r.starRating] || null,\n      review_comment: r.comment || '',\n      review_link: r.name ? `https://business.google.com/reviews/l/${businessRow.location_id || ''}` : null,\n      create_time: r.createTime,\n      has_existing_google_reply: !!r.reviewReply,\n      existing_google_reply_comment: r.reviewReply?.comment || null\n    }\n  };\n});"
       },
       "id": "b1b1b1b1-0004-4000-8000-000000000004",
       "name": "Flatten Reviews",
@@ -320,6 +320,63 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.gbp_verified }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-001b-4000-8000-00000000001b",
+      "name": "GBP Verified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1140,
+        -100
+      ],
+      "notes": "Google will not accept automated replies (Post Reply to GBP) on an unverified Business Profile. gbp_verified is set manually per business (Settings page / businesses.gbp_verified column, added 2026-08-31) once verification with Google is confirmed -- there is no API this workflow calls that can detect it automatically. True -> normal Good Review?/AI-reply flow. False -> Log Skipped Reply (Not Verified), which still records the review and still notifies the owner, but never calls Post Reply to GBP."
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update activities set activity_status = 'Pending', notes = notes || ' | Not auto-replied: Google Business Profile not yet verified' where id = $1;",
+        "options": {
+          "queryReplacement": "={{ [$json.activity_id] }}"
+        }
+      },
+      "id": "b1b1b1b1-001c-4000-8000-00000000001c",
+      "name": "Log Skipped Reply (Not Verified)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1260,
+        20
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "Postgres account"
+        }
+      },
+      "notes": "Leaves activity_status as 'Pending' (not 'Completed') so this review is picked back up and retried automatically once the business is marked verified -- matches the existing Pending/retry pattern used elsewhere in this workflow (see 'Needs Insert or Just Retry?'). Still proceeds to notify the business owner, same as every other path."
+    },
+    {
+      "parameters": {
         "operation": "executeQuery",
         "query": "update activities set reply_text = $1, activity_status = 'Completed', notes = notes || ' | Skipped auto-reply: review already had a reply on Google' where id = $2;",
         "options": {
@@ -372,6 +429,53 @@
         1180,
         -100
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.review_comment }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1b1b1b1-0010-4000-8000-000000000010b",
+      "name": "Has Comment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1290,
+        -100
+      ],
+      "notes": "4-5 star reviews with no comment text skip the Gemini call entirely and get a fixed generic thank-you reply. Reviews with a comment go through the normal AI-generated reply path."
+    },
+    {
+      "parameters": {
+        "jsCode": "const review = items[0].json;\n\nreturn [{\n  json: {\n    ...review,\n    reply_text: 'Thank you for your feedback!'\n  }\n}];"
+      },
+      "id": "b1b1b1b1-0010-4000-8000-000000000010c",
+      "name": "Set Generic Thank You Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        20
+      ],
+      "notes": "Fixed reply text for 4-5 star reviews left with no comment. Skips the Gemini call since there's nothing for it to work with."
     },
     {
       "parameters": {
@@ -451,8 +555,22 @@
     },
     {
       "parameters": {
+        "jsCode": "let replyText = '';\ntry {\n  replyText = $('Extract Reply Text').item.json.reply_text || '';\n} catch (e) {\n  replyText = $('Set Generic Thank You Reply').item.json.reply_text || '';\n}\n\nreturn [{ json: { ...$('Attach Activity ID').item.json, reply_text: replyText } }];"
+      },
+      "id": "b1b1b1b1-0012-4000-8000-000000000012b",
+      "name": "Prep Reply Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -200
+      ],
+      "notes": "Post Reply to GBP overwrites $json with the raw GBP API response, so reply_text has to be re-fetched from whichever upstream node produced it (AI path vs. no-comment generic path) rather than read off $json here."
+    },
+    {
+      "parameters": {
         "operation": "executeQuery",
-        "query": "=update activities set reply_text = '{{ $('Extract Reply Text').item.json.reply_text.replace(/'/g, \"''\") }}', activity_status = 'Completed' where id = '{{ $('Attach Activity ID').item.json.activity_id }}';",
+        "query": "=update activities set reply_text = '{{ $json.reply_text.replace(/'/g, \"''\") }}', activity_status = 'Completed' where id = '{{ $json.activity_id }}';",
         "options": {}
       },
       "id": "b1b1b1b1-0013-4000-8000-000000000013",
@@ -561,24 +679,31 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $json.business_contact_email }}",
-        "subject": "=New {{ $json.star_number }}-star review from {{ $json.reviewer_name }}",
-        "message": "=<p>Hi,</p>\n<p>A new Google review just came in for <strong>{{ $json.business_name }}</strong>:</p>\n<p><strong>Rating:</strong> {{ $json.star_number }} / 5 stars<br>\n<strong>Reviewer:</strong> {{ $json.reviewer_name }}<br>\n<strong>Comment:</strong> {{ $json.review_comment || '(no comment left)' }}</p>\n<p>{{ $json.has_existing_google_reply ? 'This review already had a reply on Google, so we did not post a new one. Existing reply: \"' + $json.reply_text + '\"' : ($json.star_number >= 4 ? 'We\\'ve automatically posted a thank-you reply on your behalf: \"' + $json.reply_text + '\"' : 'This review needs your personal attention \u00e2\u20ac\u201d we have not auto-replied since it is 3 stars or below.') }}</p>\n<p><a href=\"{{ $json.review_link }}\">View the review on Google</a></p>",
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  from: \"Always Reviews <notify@alwaysreviews.co.za>\",\n  to: [$json.business_contact_email],\n  subject: `New ${$json.star_number}-star review from ${$json.reviewer_name}`,\n  html: `<p>Hi,</p>\n<p>A new Google review just came in for <strong>${$json.business_name}</strong>:</p>\n<p><strong>Rating:</strong> ${$json.star_number} / 5 stars<br>\n<strong>Reviewer:</strong> ${$json.reviewer_name}<br>\n<strong>Comment:</strong> ${$json.review_comment || '(no comment left)'}</p>\n<p>${$json.has_existing_google_reply ? 'This review already had a reply on Google, so we did not post a new one. Existing reply: \"' + $json.reply_text + '\"' : (!$json.gbp_verified ? 'We could not auto-reply to this review because your Google Business Profile is not yet verified. Once verification is confirmed, mark it verified in Settings and this review will be replied to automatically.' : ($json.star_number >= 4 ? 'We\\'ve automatically posted a thank-you reply on your behalf: \"' + $json.reply_text + '\"' : 'This review needs your personal attention \u2014 we have not auto-replied since it is 3 stars or below.'))}</p>\n<p><a href=\"${$json.review_link}\">View the review on Google</a></p>`\n}) }}",
         "options": {}
       },
       "id": "b1b1b1b1-0018-4000-8000-000000000018",
       "name": "Notify Business of New Review",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
       "position": [
         2400,
         -100
       ],
-      "webhookId": "notify-business-review",
       "credentials": {
-        "gmailOAuth2": {
-          "id": "REPLACE_WITH_YOUR_GMAIL_CREDENTIAL_ID",
-          "name": "Gmail account"
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_RESEND_CREDENTIAL_ID",
+          "name": "resendApi"
         }
       }
     },
@@ -796,7 +921,36 @@
         ],
         [
           {
+            "node": "GBP Verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GBP Verified?": {
+      "main": [
+        [
+          {
             "node": "Good Review? (4-5 stars)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped Reply (Not Verified)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Skipped Reply (Not Verified)": {
+      "main": [
+        [
+          {
+            "node": "Get Business Contact Email (from Low-Star Path)",
             "type": "main",
             "index": 0
           }
@@ -818,7 +972,7 @@
       "main": [
         [
           {
-            "node": "Generate AI Reply",
+            "node": "Has Comment?",
             "type": "main",
             "index": 0
           }
@@ -826,6 +980,35 @@
         [
           {
             "node": "Flag Low-Star for Manual Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Comment?": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Generic Thank You Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Generic Thank You Reply": {
+      "main": [
+        [
+          {
+            "node": "Post Reply to GBP",
             "type": "main",
             "index": 0
           }
@@ -855,6 +1038,17 @@
       ]
     },
     "Post Reply to GBP": {
+      "main": [
+        [
+          {
+            "node": "Prep Reply Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Reply Log": {
       "main": [
         [
           {

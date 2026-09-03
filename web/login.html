@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign In</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="page-center">
+  <div class="card">
+    <h1>Always Reviews</h1>
+    <p class="subtitle">Sign in with your business email to continue.</p>
+    <label for="loginEmail">Email</label>
+    <input type="email" id="loginEmail" placeholder="you@yourbusiness.com" />
+    <button id="sendLinkBtn" class="full-width">Send login link</button>
+    <div id="loginMsg" class="msg"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="shared.js"></script>
+<script>
+  const loginMsg = document.getElementById("loginMsg");
+
+  function showMsg(el, text, type) {
+    el.textContent = text;
+    el.className = "msg " + type;
+  }
+
+  async function redirectIfSignedIn() {
+    const session = await getSession();
+    if (session) {
+      window.location.href = "dashboard.html";
+    }
+  }
+
+  document.getElementById("sendLinkBtn").addEventListener("click", async () => {
+    const email = document.getElementById("loginEmail").value.trim();
+    if (!email) {
+      showMsg(loginMsg, "Please enter your email.", "error");
+      return;
+    }
+    const btn = document.getElementById("sendLinkBtn");
+    btn.disabled = true;
+    const redirectTo = new URL("dashboard.html", window.location.href).toString();
+    const { error } = await sendMagicLink(email, redirectTo);
+    btn.disabled = false;
+    if (error) {
+      showMsg(loginMsg, error.message, "error");
+    } else {
+      showMsg(loginMsg, "Check your email for a login link.", "success");
+    }
+  });
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (session) window.location.href = "dashboard.html";
+  });
+
+  redirectIfSignedIn();
+</script>
+</body>
+</html>

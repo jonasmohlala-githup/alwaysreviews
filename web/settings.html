@@ -48,6 +48,12 @@
       </select>
       <p class="subtitle" style="margin-top:6px;">While Paused, no new review requests or follow-ups will be sent to any of your customers. Existing customer data is kept.</p>
 
+      <div class="checkbox-row">
+        <input type="checkbox" id="gbpVerified" disabled />
+        <label for="gbpVerified">Google Business Profile is verified</label>
+      </div>
+      <p class="subtitle" style="margin-top:6px;">Google requires a verified Business Profile before it will accept automated replies to reviews. This is confirmed by Always Reviews, not set here — contact us once your profile is verified with Google.</p>
+
       <button type="submit" id="saveBtn" class="full-width">Save changes</button>
     </form>
     <div id="formMsg" class="msg"></div>
@@ -73,7 +79,7 @@
   async function requireAuthAndLoad() {
     const session = await getSession();
     if (!session) {
-      window.location.href = "index.html";
+      window.location.href = "login.html";
       return;
     }
     whoamiText.textContent = "Signed in as " + session.user.email;
@@ -87,7 +93,7 @@
 
     const { data: business, error } = await sb
       .from("businesses")
-      .select("business_name, contact_person, contact_email, contact_phone, status")
+      .select("business_name, contact_person, contact_email, contact_phone, status, gbp_verified")
       .eq("id", businessId)
       .single();
 
@@ -101,6 +107,7 @@
     document.getElementById("contactEmail").value = business.contact_email || "";
     document.getElementById("contactPhone").value = business.contact_phone || "";
     document.getElementById("status").value = business.status || "Active";
+    document.getElementById("gbpVerified").checked = !!business.gbp_verified;
 
     document.getElementById("loadingState").style.display = "none";
     document.getElementById("settingsForm").style.display = "block";
@@ -139,10 +146,6 @@
   document.getElementById("signOutBtn").addEventListener("click", async () => {
     await signOut();
     window.location.href = "index.html";
-  });
-
-  sb.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_OUT") window.location.href = "index.html";
   });
 
   requireAuthAndLoad();

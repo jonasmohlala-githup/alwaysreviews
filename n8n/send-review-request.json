@@ -114,7 +114,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  templateName: $json.whatsapp_template,\n  campaignName: $json.whatsapp_campaign,\n  destination: $json.phone,\n  userName: $json.first_name,\n  headerParams: [],\n  bodyParams: [$json.first_name, $json.business_name],\n  source: \"api\",\n  link: $json.project_image_url\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  templateName: $json.whatsapp_template,\n  campaignName: $json.whatsapp_campaign,\n  destination: $json.phone,\n  userName: $json.first_name,\n  headerParams: [],\n  bodyParams: [$json.first_name, $json.business_name, $json.review_request_link],\n  source: \"api\",\n  link: $json.project_image_url\n}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -134,24 +134,31 @@
     },
     {
       "parameters": {
-        "sendTo": "={{ $json.email }}",
-        "subject": "={{ $json.email_subject.replace('{business_name}', $json.business_name).replace('{first_name}', $json.first_name) }}",
-        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;\">\n  <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin: 0 auto 20px auto;\">\n    <tr>\n      <td width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; border-radius: 8px; overflow: hidden;\">\n        <img src=\"{{ $json.project_image_url || 'https://images.pexels.com/photos/38135743/pexels-photo-38135743.jpeg' }}\" alt=\"Your project\" width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; object-fit: cover; display: block; border-radius: 8px;\" />\n      </td>\n    </tr>\n  </table>\n\n  <p>Hi {{ $json.first_name }},</p>\n\n  <p>{{ $json.email_intro }}</p>\n\n  <p>Could you leave us a quick Google review?</p>\n\n  <p style=\"text-align: left; margin: 30px 0;\">\n    <a href=\"{{ $json.review_request_link }}\"\n       style=\"background-color: #f9ab00; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;\">\n      Leave a Review\n    </a>\n  </p>\n\n  <p>It only takes a minute.</p>\n\n  <p>Thank you!</p>\n\n  <p>— {{ $json.business_name }}</p>\n</div>\n",
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  from: \"Always Reviews <reviews@alwaysreviews.co.za>\",\n  to: [$json.email],\n  subject: $json.email_subject.replace('{business_name}', $json.business_name).replace('{first_name}', $json.first_name),\n  html: `<div style=\"font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;\">\n  <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin: 0 auto 20px auto;\">\n    <tr>\n      <td width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; border-radius: 8px; overflow: hidden;\">\n        <img src=\"${$json.project_image_url || 'https://images.pexels.com/photos/38135743/pexels-photo-38135743.jpeg'}\" alt=\"Your project\" width=\"300\" height=\"300\" style=\"width: 300px; height: 300px; object-fit: cover; display: block; border-radius: 8px;\" />\n      </td>\n    </tr>\n  </table>\n\n  <p>Hi ${$json.first_name},</p>\n\n  <p>${$json.email_intro}</p>\n\n  <p>Could you leave us a quick Google review?</p>\n\n  <p style=\"text-align: left; margin: 30px 0;\">\n    <a href=\"${$json.review_request_link}\"\n       style=\"background-color: #f9ab00; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;\">\n      Leave a Review\n    </a>\n  </p>\n\n  <p>It only takes a minute.</p>\n\n  <p>Thank you!</p>\n\n  <p>— ${$json.business_name}</p>\n\n  <p style=\"font-size: 12px; color: #888888; margin-top: 32px;\">This inbox isn't monitored — for any questions, please contact ${$json.business_name} directly.</p>\n</div>`\n}) }}",
         "options": {}
       },
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
       "position": [
         -80,
         -160
       ],
       "id": "eefc5505-29d5-4437-bfb2-8cee6f91a5d0",
-      "name": "Send a message",
-      "webhookId": "36e2aec7-e97a-43f1-88fd-3a8cb1bd6800",
+      "name": "Send Email (Resend)",
       "credentials": {
-        "gmailOAuth2": {
-          "id": "ulywzULBmWeNyd1R",
-          "name": "Gmail account"
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_RESEND_CREDENTIAL_ID",
+          "name": "resendApi"
         }
       }
     },
@@ -259,7 +266,7 @@
       "main": [
         [
           {
-            "node": "Send a message",
+            "node": "Send Email (Resend)",
             "type": "main",
             "index": 0
           }
@@ -277,7 +284,7 @@
         ]
       ]
     },
-    "Send a message": {
+    "Send Email (Resend)": {
       "main": [
         [
           {

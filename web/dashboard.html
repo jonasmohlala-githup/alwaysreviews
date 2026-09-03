@@ -99,11 +99,10 @@
   }
 
   async function requireAuthAndLoad() {
-    const { data, error: sessionError } = await sb.auth.getSession();
-    const session = data?.session;
+    const session = await getSession();
     if (!session) {
-      console.error("No session on dashboard load.", { sessionError, hash: window.location.hash });
-      window.location.href = "index.html";
+      console.error("No session on dashboard load.", { hash: window.location.hash });
+      window.location.href = "login.html";
       return;
     }
     whoamiText.textContent = "Signed in as " + session.user.email;
@@ -188,10 +187,6 @@
   document.getElementById("signOutBtn").addEventListener("click", async () => {
     await signOut();
     window.location.href = "index.html";
-  });
-
-  sb.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_OUT") window.location.href = "index.html";
   });
 
   requireAuthAndLoad();

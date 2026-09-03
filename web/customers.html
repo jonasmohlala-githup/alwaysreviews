@@ -84,7 +84,7 @@
   async function requireAuthAndLoad() {
     const session = await getSession();
     if (!session) {
-      window.location.href = "index.html";
+      window.location.href = "login.html";
       return;
     }
     whoamiText.textContent = "Signed in as " + session.user.email;
@@ -180,10 +180,6 @@
   document.getElementById("signOutBtn").addEventListener("click", async () => {
     await signOut();
     window.location.href = "index.html";
-  });
-
-  sb.auth.onAuthStateChange((event) => {
-    if (event === "SIGNED_OUT") window.location.href = "index.html";
   });
 
   requireAuthAndLoad();

@@ -99,6 +99,66 @@ button.secondary {
   color: var(--text);
 }
 
+/* --- Mobile nav (hamburger) --- */
+.nav-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.nav-toggle span,
+.nav-toggle span::before,
+.nav-toggle span::after {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text);
+  position: relative;
+}
+.nav-toggle span::before,
+.nav-toggle span::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+.nav-toggle span::before { top: -5px; }
+.nav-toggle span::after { top: 5px; }
+
+@media (max-width: 720px) {
+  .topbar { flex-wrap: wrap; padding: 14px 16px; }
+  .nav-toggle { display: block; order: 1; margin-left: auto; }
+  .topbar .brand { order: 0; }
+  .topbar nav,
+  .topbar .whoami {
+    display: none;
+    order: 2;
+    width: 100%;
+  }
+  .topbar.nav-open nav,
+  .topbar.nav-open .whoami {
+    display: flex;
+  }
+  .topbar nav {
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 14px;
+  }
+  .topbar nav a { margin-right: 0; padding: 10px 4px; border-top: 1px solid var(--border); }
+  .topbar nav a:first-child { border-top: none; }
+  .topbar .whoami {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .topbar .whoami button { width: 100%; }
+  .biz-switcher { width: 100%; }
+}
+
 .container { max-width: 960px; margin: 0 auto; padding: 32px 16px; }
 
 /* --- Dashboard stat tiles --- */
