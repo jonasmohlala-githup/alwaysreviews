@@ -93,34 +93,34 @@
       <button id="signOutBtn">Sign out</button>
     </div>
     <h1>Add a Customer</h1>
-    <p class="subtitle">Enter their details and, if you have one, a photo of their project.</p>
+    <p class="subtitle">Enter their details and a photo of their project.</p>
 
     <form id="customerForm">
       <label for="firstName">First name *</label>
       <input type="text" id="firstName" required />
 
-      <label for="fullName">Full name</label>
-      <input type="text" id="fullName" />
+      <label for="fullName">Full name *</label>
+      <input type="text" id="fullName" required />
 
       <label for="phone">Phone (WhatsApp, e.g. 27821234567)</label>
-      <input type="tel" id="phone" />
+      <input type="tel" id="phone" placeholder="27821234567" pattern="[1-9][0-9]{7,14}" title="International format, digits only, no leading 0 or +, e.g. 27821234567" />
 
-      <label for="email">Email</label>
-      <input type="email" id="email" />
+      <label for="email">Email *</label>
+      <input type="email" id="email" required />
 
-      <label for="serviceType">Service / job type</label>
-      <input type="text" id="serviceType" />
+      <label for="serviceType">Service / job type *</label>
+      <input type="text" id="serviceType" required />
 
-      <label for="jobDate">Job completion date</label>
-      <input type="date" id="jobDate" />
+      <label for="jobDate">Job completion date *</label>
+      <input type="date" id="jobDate" required />
 
       <div class="checkbox-row">
         <input type="checkbox" id="consent" />
         <label for="consent">This customer has agreed to be contacted about leaving a review</label>
       </div>
 
-      <label for="photo">Project photo (optional)</label>
-      <input type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp,image/heic" />
+      <label for="photo">Project photo *</label>
+      <input type="file" id="photo" accept="image/png,image/jpeg,image/jpg,image/webp,image/heic" required />
 
       <button type="submit" id="submitBtn">Add customer</button>
     </form>
@@ -153,6 +153,9 @@
     el.textContent = "";
     el.className = "msg";
   }
+
+  // International WhatsApp number, no leading zero or plus: country code + subscriber number, 8-15 digits total (E.164 without the "+").
+  const WHATSAPP_REGEX = /^[1-9]\d{7,14}$/;
 
   async function refreshView() {
     const { data: { session } } = await sb.auth.getSession();
@@ -199,6 +202,22 @@
     submitBtn.textContent = "Adding...";
 
     try {
+      const fullName = document.getElementById("fullName").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const serviceType = document.getElementById("serviceType").value.trim();
+      const jobDateValue = document.getElementById("jobDate").value;
+      const phone = document.getElementById("phone").value.trim();
+      const photoInput = document.getElementById("photo");
+
+      if (!fullName) throw new Error("Full name is required.");
+      if (!email) throw new Error("Email address is required.");
+      if (!serviceType) throw new Error("Service / job type is required.");
+      if (!jobDateValue) throw new Error("Job completion date is required.");
+      if (photoInput.files.length === 0) throw new Error("A project photo is required.");
+      if (phone && !WHATSAPP_REGEX.test(phone)) {
+        throw new Error("Enter a valid WhatsApp number in international format, digits only, no leading 0 or +, e.g. 27821234567.");
+      }
+
       const { data: { session } } = await sb.auth.getSession();
       if (!session) throw new Error("You are not signed in.");
 
@@ -216,35 +235,29 @@
       }
       const businessId = memberships[0].business_id;
 
-      let projectImageUrl = null;
-      const photoInput = document.getElementById("photo");
-      if (photoInput.files.length > 0) {
-        const file = photoInput.files[0];
-        const ext = file.name.split(".").pop();
-        const path = `${businessId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const file = photoInput.files[0];
+      const ext = file.name.split(".").pop();
+      const path = `${businessId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-        const { error: uploadError } = await sb.storage
-          .from(STORAGE_BUCKET)
-          .upload(path, file, { contentType: file.type });
+      const { error: uploadError } = await sb.storage
+        .from(STORAGE_BUCKET)
+        .upload(path, file, { contentType: file.type });
 
-        if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-        const { data: publicUrlData } = sb.storage
-          .from(STORAGE_BUCKET)
-          .getPublicUrl(path);
-        projectImageUrl = publicUrlData.publicUrl;
-      }
-
-      const jobDateValue = document.getElementById("jobDate").value;
+      const { data: publicUrlData } = sb.storage
+        .from(STORAGE_BUCKET)
+        .getPublicUrl(path);
+      const projectImageUrl = publicUrlData.publicUrl;
 
       const { error: insertError } = await sb.from("customers").insert({
         business_id: businessId,
         first_name: document.getElementById("firstName").value.trim(),
-        full_name: document.getElementById("fullName").value.trim() || null,
-        phone: document.getElementById("phone").value.trim() || null,
-        email: document.getElementById("email").value.trim() || null,
-        service_type: document.getElementById("serviceType").value.trim() || null,
-        job_completion_date: jobDateValue || null,
+        full_name: fullName,
+        phone: phone || null,
+        email: email,
+        service_type: serviceType,
+        job_completion_date: jobDateValue,
         consent_optin: document.getElementById("consent").checked,
         source: "Business self-serve form (authenticated)",
         project_image_url: projectImageUrl
